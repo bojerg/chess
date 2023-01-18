@@ -42,14 +42,16 @@ func (b *Board) Draw(boardImage *ebiten.Image, pieces [32]*Piece, selected [2]fl
 
 	//Draw pieces
 	for i := 0; i < len(pieces); i++ {
-
-		tx := float64(pieces[i].col)*85.33 + 310
-		ty := float64(pieces[i].row)*85.33 + 28
+		var tx float64
+		var ty float64
 
 		//if a piece has been selected we want to follow that piece the mouse instead
 		if i == selectedPiece {
 			tx = selected[0]
 			ty = selected[1]
+		} else {
+			tx = float64(pieces[i].col)*85.33 + 310
+			ty = float64(pieces[i].row)*85.33 + 28
 		}
 
 		op := &ebiten.DrawImageOptions{}

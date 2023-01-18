@@ -15,9 +15,9 @@ import (
 // col, row: identifies location on chess board
 // white: If on team white, is true
 type Piece struct {
-	id    int8
-	col   int8
-	row   int8
+	id    int
+	col   int
+	row   int
 	white bool
 }
 

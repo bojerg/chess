@@ -1,3 +1,5 @@
+//go:build ebitenginesinglethread
+
 package main
 
 import (
@@ -46,6 +48,8 @@ func (g *Game) Update() error {
 				if int(g.pieces[i].col) == boardCol {
 					if int(g.pieces[i].row) == boardRow {
 						g.selectedPiece = i
+						g.selected[0] = float64(x)/1.5 - 30
+						g.selected[1] = float64(y)/1.5 - 30
 						break
 					}
 				}
@@ -59,9 +63,9 @@ func (g *Game) Update() error {
 	} else {
 		if g.selectedPiece != -1 {
 			// Piece is selected but left mouse is now released
-			g.CheckPieces(int8(boardRow), int8(boardCol), true)
-			g.pieces[g.selectedPiece].row = int8(boardRow)
-			g.pieces[g.selectedPiece].col = int8(boardCol)
+			g.CheckPieces(boardRow, boardCol, true)
+			g.pieces[g.selectedPiece].row = boardRow
+			g.pieces[g.selectedPiece].col = boardCol
 			//TODO make this work and delete the following
 			g.selectedPiece = -1
 		}
@@ -72,8 +76,8 @@ func (g *Game) Update() error {
 
 // CheckPieces checks if there is a piece on the square and will set any piece there to id = 6 (taken) if
 // the "takeIt" bool is true. It returns the index of the piece in the game's pieces array, or -1 if none found.
-// Game logic should prevent this from running if no piece index is stored in selectedPiece int...
-func (g *Game) CheckPieces(row int8, col int8, takeIt bool) int {
+// The game's logic should prevent this from running if no piece index is stored in selectedPiece int...
+func (g *Game) CheckPieces(row int, col int, takeIt bool) int {
 	for i, piece := range g.pieces {
 		if piece.row == row && piece.col == col {
 			if takeIt && i != g.selectedPiece {
