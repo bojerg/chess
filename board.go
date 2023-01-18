@@ -1,23 +1,20 @@
 package main
 
 import (
-	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"image/color"
 )
 
 type Board struct {
-	pieces [32]Piece
 }
 
 var lightColor = color.RGBA{R: 0xbb, G: 0x99, B: 0x55, A: 0xff}
 var darkColor = color.RGBA{R: 0xcb, G: 0xbe, B: 0xb5, A: 0xff}
 
-func (b *Board) Draw(boardImage *ebiten.Image) {
+func (b *Board) Draw(boardImage *ebiten.Image, pieces [32]*Piece) {
 	tileSize := 128
-	pieceSize := 120
+
 	tileImage := ebiten.NewImage(tileSize, tileSize)
-	pieceImage := ebiten.NewImage(pieceSize, pieceSize)
 
 	// Row, Column
 	// Draw tiles for pieces
@@ -44,14 +41,14 @@ func (b *Board) Draw(boardImage *ebiten.Image) {
 		}
 	}
 
-	fmt.Println(len(b.pieces))
-
 	//Draw pieces
-	for i := 0; i < len(b.pieces); i++ {
-		b.pieces[i].DrawImage(pieceImage)
+	//TODO reformat to allow for missing pieces
+	for i := 0; i < len(pieces); i++ {
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(float64(int(b.pieces[i].col)*tileSize+448), float64(int(b.pieces[i].row)*tileSize+28))
-		//boardImage.DrawImage(pieceImage, op)
+		op.GeoM.Translate(float64(pieces[i].col)*85.3+310, float64(pieces[i].row)*85.3+28)
+		//essentially W x H = 90 x 90
+		op.GeoM.Scale(1.5, 1.5)
+		boardImage.DrawImage(pieces[i].GetImage(), op)
 	}
 
 }

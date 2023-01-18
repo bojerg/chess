@@ -1,13 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	_ "image/png" // required for ebitenutil/NewImageFromFile
 	"log"
+	"path/filepath"
 )
 
 // Piece
-// id: 0 pawn, 1 knight, 2 bishop, 3 rook, 4 queen, 5 king
+// id: 0 pawn, 1 knight, 2 bishop, 3 rook, 4 queen, 5 king, 6 none/taken
 // col, row: identifies location on chess board
 // white: If on team white, is true
 type Piece struct {
@@ -17,56 +20,63 @@ type Piece struct {
 	white bool
 }
 
-func (p *Piece) DrawImage(pieceImage *ebiten.Image) {
+func (p *Piece) GetImage() *ebiten.Image {
 	// https://commons.wikimedia.org/wiki/Category:PNG_chess_pieces/Standard_transparent
-	filepath := "/images/"
+	filepathStr := "images/"
 	switch p.id {
 	case 0:
 		if p.white {
-			filepath += "whitePawn.png"
+			filepathStr += "whitePawn.png"
 		} else {
-			filepath += "blackPawn.png"
+			filepathStr += "blackPawn.png"
 		}
 	case 1:
 		if p.white {
-			filepath += "whiteKnight.png"
+			filepathStr += "whiteKnight.png"
 		} else {
-			filepath += "blackKnight.png"
+			filepathStr += "blackKnight.png"
 		}
 
 	case 2:
 		if p.white {
-			filepath += "whiteBishop.png"
+			filepathStr += "whiteBishop.png"
 		} else {
-			filepath += "blackBishop.png"
+			filepathStr += "blackBishop.png"
 		}
 
 	case 3:
 		if p.white {
-			filepath += "whiteRook.png"
+			filepathStr += "whiteRook.png"
 		} else {
-			filepath += "blackRook.png"
+			filepathStr += "blackRook.png"
 		}
 
 	case 4:
 		if p.white {
-			filepath += "whiteQueen.png"
+			filepathStr += "whiteQueen.png"
 		} else {
-			filepath += "blackQueen.png"
+			filepathStr += "blackQueen.png"
 		}
 
 	case 5:
 		if p.white {
-			filepath += "whiteKing.png"
+			filepathStr += "whiteKing.png"
 		} else {
-			filepath += "blackQueen.png"
+			filepathStr += "blackKing.png"
 		}
+	default:
+		fmt.Println("...wtf")
 	}
 
 	var err error = nil
-	pieceImage, _, err = ebitenutil.NewImageFromFile(filepath)
+	// path/filepath creates filepath for any OS, supposedly
+	fileLoc, _ := filepath.Abs(filepathStr)
+	pieceImage, _, err := ebitenutil.NewImageFromFile(fileLoc)
 	if err != nil {
 		log.Fatal(err)
+		return nil
+	} else {
+		return pieceImage
 	}
 
 }
