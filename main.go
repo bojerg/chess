@@ -4,12 +4,21 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"image/color"
 	"log"
+	"math"
 )
 
+// Game
+// board is the chess board object/logic
+// boardImage is, well, the board image
+// pieces is an array of all the pieces...
+// selected is for the x, y values of a piece in motion
+// selectedPiece is the index of the selected piece... -1 means none
 type Game struct {
-	board      *Board
-	boardImage *ebiten.Image
-	pieces     [32]*Piece
+	board         *Board
+	boardImage    *ebiten.Image
+	pieces        [32]*Piece
+	selected      [2]float64
+	selectedPiece int
 }
 
 const (
@@ -19,23 +28,72 @@ const (
 
 func (g *Game) Update() error {
 
+	// mouse position and relative board position
+	x, y := ebiten.CursorPosition()
+	boardCol := int(math.Floor(float64((x - 448) / 128)))
+	boardRow := int(math.Floor(float64((y - 28) / 128)))
+
 	// No way to exit fullscreen without this for now
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 		ebiten.SetFullscreen(false)
 	}
 
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+
+		if g.selectedPiece == -1 {
+			// No piece selected but left mouse is held down
+			for i := 0; i < len(g.pieces); i++ {
+				if int(g.pieces[i].col) == boardCol {
+					if int(g.pieces[i].row) == boardRow {
+						g.selectedPiece = i
+						break
+					}
+				}
+			}
+		} else {
+			// Piece is being held by the mouse
+			// the selected array is passed to board's draw method for x y coordinates of moving piece
+			g.selected[0] = float64(x)/1.5 - 30
+			g.selected[1] = float64(y)/1.5 - 30
+		}
+	} else {
+		if g.selectedPiece != -1 {
+			// Piece is selected but left mouse is now released
+			g.CheckPieces(int8(boardRow), int8(boardCol), true)
+			g.pieces[g.selectedPiece].row = int8(boardRow)
+			g.pieces[g.selectedPiece].col = int8(boardCol)
+			//TODO make this work and delete the following
+			g.selectedPiece = -1
+		}
+	}
+
 	return nil
+}
+
+// CheckPieces checks if there is a piece on the square and will set any piece there to id = 6 (taken) if
+// the "takeIt" bool is true. It returns the index of the piece in the game's pieces array, or -1 if none found.
+// Game logic should prevent this from running if no piece index is stored in selectedPiece int...
+func (g *Game) CheckPieces(row int8, col int8, takeIt bool) int {
+	for i, piece := range g.pieces {
+		if piece.row == row && piece.col == col {
+			if takeIt && i != g.selectedPiece {
+				piece.id = 6 // 6 = piece taken
+			}
+			return i
+		}
+	}
+
+	return -1
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
 
 	if g.boardImage == nil {
 		g.boardImage = ebiten.NewImage(WIDTH, HEIGHT)
-		g.InitPieces()
 	}
 
 	screen.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
-	g.board.Draw(g.boardImage, g.pieces)
+	g.board.Draw(g.boardImage, g.pieces, g.selected, g.selectedPiece)
 
 	op := &ebiten.DrawImageOptions{}
 	sw, sh := screen.Size()
@@ -47,7 +105,25 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.DrawImage(g.boardImage, op)
 }
 
+func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+	return WIDTH, HEIGHT
+}
+
+func main() {
+	game := &Game{}
+	game.InitPieces()
+	ebiten.SetWindowSize(WIDTH/2, HEIGHT/2)
+	ebiten.SetWindowTitle("chess")
+	ebiten.SetFullscreen(true)
+	if err := ebiten.RunGame(game); err != nil {
+		log.Fatal(err)
+	}
+}
+
 func (g *Game) InitPieces() {
+	g.selectedPiece = -1
+	g.selected[0] = 0.0
+	g.selected[1] = 0.0
 	g.pieces[0] = &Piece{3, 0, 0, false}
 	g.pieces[1] = &Piece{1, 1, 0, false}
 	g.pieces[2] = &Piece{2, 2, 0, false}
@@ -81,18 +157,4 @@ func (g *Game) InitPieces() {
 	g.pieces[29] = &Piece{2, 5, 7, true}
 	g.pieces[30] = &Piece{1, 6, 7, true}
 	g.pieces[31] = &Piece{3, 7, 7, true}
-}
-
-func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return WIDTH, HEIGHT
-}
-
-func main() {
-	game := &Game{}
-	ebiten.SetWindowSize(WIDTH/2, HEIGHT/2)
-	ebiten.SetWindowTitle("chess")
-	ebiten.SetFullscreen(true)
-	if err := ebiten.RunGame(game); err != nil {
-		log.Fatal(err)
-	}
 }

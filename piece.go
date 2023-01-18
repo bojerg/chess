@@ -7,6 +7,7 @@ import (
 	_ "image/png" // required for ebitenutil/NewImageFromFile
 	"log"
 	"path/filepath"
+	"strconv"
 )
 
 // Piece
@@ -20,6 +21,37 @@ type Piece struct {
 	white bool
 }
 
+// GetName primarily intended for debugging
+func (p *Piece) GetName() string {
+	var ret string
+
+	switch p.id {
+	case 0:
+		ret = "Pawn"
+	case 1:
+		ret = "Knight"
+	case 2:
+		ret = "Bishop"
+	case 3:
+		ret = "Rook"
+	case 4:
+		ret = "Queen"
+	case 5:
+		ret = "King"
+	}
+
+	if p.white {
+		ret += ", white"
+	} else {
+		ret += ", black"
+	}
+
+	ret += "\trow:" + strconv.Itoa(int(p.row)) + " col:" + strconv.Itoa(int(p.col))
+
+	return ret
+}
+
+// GetImage returns the corresponding ebiten image
 func (p *Piece) GetImage() *ebiten.Image {
 	// https://commons.wikimedia.org/wiki/Category:PNG_chess_pieces/Standard_transparent
 	filepathStr := "images/"

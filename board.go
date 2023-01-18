@@ -11,7 +11,7 @@ type Board struct {
 var lightColor = color.RGBA{R: 0xbb, G: 0x99, B: 0x55, A: 0xff}
 var darkColor = color.RGBA{R: 0xcb, G: 0xbe, B: 0xb5, A: 0xff}
 
-func (b *Board) Draw(boardImage *ebiten.Image, pieces [32]*Piece) {
+func (b *Board) Draw(boardImage *ebiten.Image, pieces [32]*Piece, selected [2]float64, selectedPiece int) {
 	tileSize := 128
 
 	tileImage := ebiten.NewImage(tileSize, tileSize)
@@ -36,19 +36,30 @@ func (b *Board) Draw(boardImage *ebiten.Image, pieces [32]*Piece) {
 					tileImage.Fill(lightColor)
 				}
 			}
-
 			boardImage.DrawImage(tileImage, op)
 		}
 	}
 
 	//Draw pieces
-	//TODO reformat to allow for missing pieces
 	for i := 0; i < len(pieces); i++ {
+
+		tx := float64(pieces[i].col)*85.33 + 310
+		ty := float64(pieces[i].row)*85.33 + 28
+
+		//if a piece has been selected we want to follow that piece the mouse instead
+		if i == selectedPiece {
+			tx = selected[0]
+			ty = selected[1]
+		}
+
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(float64(pieces[i].col)*85.3+310, float64(pieces[i].row)*85.3+28)
+		op.GeoM.Translate(tx, ty)
 		//essentially W x H = 90 x 90
 		op.GeoM.Scale(1.5, 1.5)
-		boardImage.DrawImage(pieces[i].GetImage(), op)
+		// id of 6 means piece has been taken
+		if pieces[i].id != 6 {
+			boardImage.DrawImage(pieces[i].GetImage(), op)
+		}
 	}
 
 }
