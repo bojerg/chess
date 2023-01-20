@@ -4,6 +4,7 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
+	_ "github.com/silbinarywolf/preferdiscretegpu" // Fix for discrete GPUs in windows
 	"image/color"
 	"log"
 	"math"
@@ -32,8 +33,22 @@ func (g *Game) Update() error {
 
 	// mouse position and relative board position
 	x, y := ebiten.CursorPosition()
+
 	boardCol := int(math.Floor(float64((x - 448) / 128)))
 	boardRow := int(math.Floor(float64((y - 28) / 128)))
+
+	if boardCol < 0 {
+		boardCol = 0
+	}
+	if boardRow < 0 {
+		boardRow = 0
+	}
+	if boardCol > 7 {
+		boardCol = 7
+	}
+	if boardRow > 7 {
+		boardRow = 7
+	}
 
 	// No way to exit fullscreen without this for now
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
@@ -96,7 +111,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.boardImage = ebiten.NewImage(WIDTH, HEIGHT)
 	}
 
-	screen.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
+	g.boardImage.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
 	g.board.Draw(g.boardImage, g.pieces, g.selected, g.selectedPiece)
 
 	op := &ebiten.DrawImageOptions{}

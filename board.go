@@ -13,16 +13,15 @@ var darkColor = color.RGBA{R: 0xcb, G: 0xbe, B: 0xb5, A: 0xff}
 
 func (b *Board) Draw(boardImage *ebiten.Image, pieces [32]*Piece, selected [2]float64, selectedPiece int) {
 	tileSize := 128
-
 	tileImage := ebiten.NewImage(tileSize, tileSize)
-
 	// Row, Column
 	// Draw tiles for pieces
 	for r := 0; r < 8; r++ {
 		for c := 0; c < 8; c++ {
 			op := &ebiten.DrawImageOptions{}
 			op.GeoM.Translate(float64(c*tileSize+448), float64(r*tileSize+28))
-			//determine if tile is light or dark
+			//determine if tile is light or dark, or selected
+			//TODO color in available moves for a selected piece
 			if r%2 == 0 {
 				if c%2 == 0 {
 					tileImage.Fill(lightColor)
