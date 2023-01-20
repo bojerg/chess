@@ -16,12 +16,15 @@ import (
 // pieces is an array of all the pieces...
 // selected is for the x, y values of a piece in motion
 // selectedPiece is the index of the selected piece... -1 means none
+// boardCol, boardRow is the hovered over/selected board square
 type Game struct {
 	board         *Board
 	boardImage    *ebiten.Image
 	pieces        [32]*Piece
 	selected      [2]float64
 	selectedPiece int
+	boardCol      int
+	boardRow      int
 }
 
 const (
@@ -34,21 +37,9 @@ func (g *Game) Update() error {
 	// mouse position and relative board position
 	x, y := ebiten.CursorPosition()
 
-	boardCol := int(math.Floor(float64((x - 448) / 128)))
-	boardRow := int(math.Floor(float64((y - 28) / 128)))
-
-	if boardCol < 0 {
-		boardCol = 0
-	}
-	if boardRow < 0 {
-		boardRow = 0
-	}
-	if boardCol > 7 {
-		boardCol = 7
-	}
-	if boardRow > 7 {
-		boardRow = 7
-	}
+	// fancy min max floor math to determine the closest board square to the cursor
+	g.boardCol = int(math.Floor(math.Min(math.Max(float64((x-448)/128), 0), 7)))
+	g.boardRow = int(math.Floor(math.Min(math.Max(float64((y-28)/128), 0), 7)))
 
 	// No way to exit fullscreen without this for now
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
@@ -60,8 +51,8 @@ func (g *Game) Update() error {
 		if g.selectedPiece == -1 {
 			// No piece selected but left mouse is held down
 			for i := 0; i < len(g.pieces); i++ {
-				if int(g.pieces[i].col) == boardCol {
-					if int(g.pieces[i].row) == boardRow {
+				if g.pieces[i].col == g.boardCol {
+					if g.pieces[i].row == g.boardRow {
 						g.selectedPiece = i
 						g.selected[0] = float64(x)/1.5 - 30
 						g.selected[1] = float64(y)/1.5 - 30
@@ -78,9 +69,9 @@ func (g *Game) Update() error {
 	} else {
 		if g.selectedPiece != -1 {
 			// Piece is selected but left mouse is now released
-			g.CheckPieces(boardRow, boardCol, true)
-			g.pieces[g.selectedPiece].row = boardRow
-			g.pieces[g.selectedPiece].col = boardCol
+			g.CheckPieces(g.boardRow, g.boardCol, true)
+			g.pieces[g.selectedPiece].row = g.boardRow
+			g.pieces[g.selectedPiece].col = g.boardCol
 			//TODO make this work and delete the following
 			g.selectedPiece = -1
 		}
@@ -112,7 +103,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	g.boardImage.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
-	g.board.Draw(g.boardImage, g.pieces, g.selected, g.selectedPiece)
+	g.board.Draw(g.boardImage, g.pieces, g.selected, g.selectedPiece, g.boardCol, g.boardRow)
 
 	op := &ebiten.DrawImageOptions{}
 	sw, sh := screen.Size()
@@ -134,6 +125,7 @@ func main() {
 	ebiten.SetWindowSize(WIDTH/2, HEIGHT/2)
 	ebiten.SetWindowTitle("chess")
 	ebiten.SetFullscreen(true)
+	//ebiten.SetScreenClearedEveryFrame(false)
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
