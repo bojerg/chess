@@ -18,7 +18,7 @@ import (
 // pieces is an array of all the pieces...
 // selected is for the x, y values of a piece in motion
 // selectedPiece is the index of the selected piece... -1 means none
-// boardCol, boardRow is the hovered over/selected board square
+// selectedCol, selectedRow is the hovered over/selected board square
 // scheduleDraw bool is a sentinel value to indicate that the piece locations have changed
 // and the pieceImage should be redrawn
 type Game struct {
@@ -29,8 +29,8 @@ type Game struct {
 	pieces        [32]*Piece
 	selected      [2]float64
 	selectedPiece int
-	boardCol      int
-	boardRow      int
+	selectedCol   int
+	selectedRow   int
 	scheduleDraw  bool
 }
 
@@ -40,28 +40,31 @@ const (
 	TileSize = 128
 )
 
+// Update
+// Required function by ebitengine. Contains the logic ran every tick of the game.
 func (g *Game) Update() error {
-
-	// mouse position and relative board position
 	x, y := ebiten.CursorPosition()
 
-	// fancy min max floor math to determine the closest board square to the cursor
-	g.boardCol = int(math.Floor(math.Min(math.Max(float64((x-448)/128), 0), 7)))
-	g.boardRow = int(math.Floor(math.Min(math.Max(float64((y-28)/128), 0), 7)))
+	// fancy min max floor math to determine the closest board square to the cursor, even
+	// when the mouse is not over the board
+	g.selectedCol = int(math.Floor(math.Min(math.Max(float64((x-448)/128), 0), 7)))
+	g.selectedRow = int(math.Floor(math.Min(math.Max(float64((y-28)/128), 0), 7)))
 
 	// No way to exit fullscreen without this for now
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 		ebiten.SetFullscreen(false)
 	}
 
+	// left click hold and drag
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-
+		// No piece selected but left mouse is held down
 		if g.selectedPiece == -1 {
-			// No piece selected but left mouse is held down
+			// figure out which piece is selected
 			for i := 0; i < len(g.pieces); i++ {
-				if g.pieces[i].col == g.boardCol {
-					if g.pieces[i].row == g.boardRow {
+				if g.pieces[i].col == g.selectedCol {
+					if g.pieces[i].row == g.selectedRow {
 						g.selectedPiece = i
+						// store the xy coordinates of the cursor
 						g.selected[0] = float64(x)/1.5 - 30
 						g.selected[1] = float64(y)/1.5 - 30
 						g.scheduleDraw = true
@@ -70,18 +73,17 @@ func (g *Game) Update() error {
 				}
 			}
 		} else {
-			// Piece is being held by the mouse
-			// the selected array is passed to board's draw method for x y coordinates of moving piece
+			// update current mouse position because piece is still selected
 			g.selected[0] = float64(x)/1.5 - 30
 			g.selected[1] = float64(y)/1.5 - 30
 		}
-	} else {
+	} else { // MouseButtonLeft is not pressed
 		if g.selectedPiece != -1 {
-			// Piece is selected but left mouse is now released
-			g.CheckPieces(g.boardRow, g.boardCol, true)
-			g.pieces[g.selectedPiece].row = g.boardRow
-			g.pieces[g.selectedPiece].col = g.boardCol
-			//TODO make this work and delete the following
+			// piece is asking to be let go of at it the current mouse position
+			// TODO rules check goes here
+			g.CheckPieces(g.selectedRow, g.selectedCol, true)
+			g.pieces[g.selectedPiece].row = g.selectedRow
+			g.pieces[g.selectedPiece].col = g.selectedCol
 			g.selectedPiece = -1
 			g.scheduleDraw = true
 		}
@@ -107,8 +109,7 @@ func (g *Game) CheckPieces(row int, col int, takeIt bool) int {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-
-	g.board.DrawHighlightedTiles(g.gameImage, g.boardCol, g.boardRow)
+	g.board.DrawHighlightedTiles(g.gameImage, g.selectedCol, g.selectedRow)
 
 	// no moving pieces
 	if g.selectedPiece != -1 {
@@ -151,6 +152,8 @@ func main() {
 	}
 }
 
+// InitPieces
+// Assign variables with starting positions. Render the first image of the pieces in their starting positions.
 func (g *Game) InitPieces() {
 	g.selectedPiece = -1
 	g.selected[0] = 0.0
@@ -194,30 +197,30 @@ func (g *Game) InitPieces() {
 	g.scheduleDraw = false
 }
 
+// InitBoard
+// The "Board" struct currently provides only helper functions which are drawn over the board's spaces. The board
+// image which is seen on screen is rendered in this function, after assigning a few variables.
 func (g *Game) InitBoard() {
+	lightImage := ebiten.NewImage(TileSize*8, TileSize*8)
+	darkImage := ebiten.NewImage(TileSize, TileSize)
 	g.gameImage = ebiten.NewImage(Width, Height)
 	g.boardImage = ebiten.NewImage(Width, Height)
 	g.boardImage.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
 	darkColor := color.RGBA{R: 0xbb, G: 0x99, B: 0x55, A: 0xff}
 	lightColor := color.RGBA{R: 0xcb, G: 0xbe, B: 0xb5, A: 0xff}
 
-	tileImage := ebiten.NewImage(TileSize, TileSize)
-	lightImage := ebiten.NewImage(TileSize*8, TileSize*8)
-
-	// Drawing one big light square to cut down on draw ops
+	// Drawing one big light square to (slightly) cut down on draw ops
 	opLight := &ebiten.DrawImageOptions{}
 	opLight.GeoM.Translate(448, 28)
 	lightImage.Fill(lightColor)
 	g.boardImage.DrawImage(lightImage, opLight)
-	// Row, Column
-	// Draw dark tiles
-	for r := 0; r < 8; r++ {
-		for c := 0; c < 8; c++ {
-			if (r%2 == 0 && c%2 != 0) || (r%2 != 0 && c%2 == 0) {
+	for row := 0; row < 8; row++ {
+		for col := 0; col < 8; col++ {
+			if (row%2 == 0 && col%2 != 0) || (row%2 != 0 && col%2 == 0) {
 				opDark := &ebiten.DrawImageOptions{}
-				opDark.GeoM.Translate(float64(c*TileSize+448), float64(r*TileSize+28))
-				tileImage.Fill(darkColor)
-				g.boardImage.DrawImage(tileImage, opDark)
+				opDark.GeoM.Translate(float64(col*TileSize+448), float64(row*TileSize+28))
+				darkImage.Fill(darkColor)
+				g.boardImage.DrawImage(darkImage, opDark)
 			}
 
 		}

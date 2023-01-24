@@ -38,7 +38,7 @@ func (b *Board) DrawMovingPiece(gameImage *ebiten.Image, pieces [32]*Piece, sele
 	}
 }
 
-func (b *Board) DrawHighlightedTiles(gameImage *ebiten.Image, boardCol int, boardRow int) {
+func (b *Board) DrawHighlightedTiles(gameImage *ebiten.Image, selectedCol int, selectedRow int) {
 	tileImage := ebiten.NewImage(TileSize, TileSize)
 	gameImage.Clear()
 
@@ -47,7 +47,7 @@ func (b *Board) DrawHighlightedTiles(gameImage *ebiten.Image, boardCol int, boar
 	for r := 0; r < 8; r++ {
 		for c := 0; c < 8; c++ {
 			//TODO color in available moves for a selected piece as well?
-			if r == boardRow && c == boardCol {
+			if r == selectedRow && c == selectedCol {
 				opTile := &ebiten.DrawImageOptions{}
 				opTile.GeoM.Translate(float64(c*TileSize+448), float64(r*TileSize+28))
 				tileImage.Fill(color.RGBA{R: 0xea, G: 0xdd, B: 0x23, A: 0xff})
