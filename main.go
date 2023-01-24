@@ -11,28 +11,33 @@ import (
 )
 
 // Game
-// gameImage is the foreground-- like pieces or selected tiles, etc
+// gameImage is the most foreground-- like moving pieces, selected tiles, UI, etc
 // board is becoming just draw functions for pieces on the board, needs a name refactor
 // boardImage is, well, the board image
+// pieceImage is a static image of where pieces lay
 // pieces is an array of all the pieces...
 // selected is for the x, y values of a piece in motion
 // selectedPiece is the index of the selected piece... -1 means none
 // boardCol, boardRow is the hovered over/selected board square
+// scheduleDraw bool is a sentinel value to indicate that the piece locations have changed
+// and the pieceImage should be redrawn
 type Game struct {
 	gameImage     *ebiten.Image
 	board         *Board
 	boardImage    *ebiten.Image
+	pieceImage    *ebiten.Image
 	pieces        [32]*Piece
 	selected      [2]float64
 	selectedPiece int
 	boardCol      int
 	boardRow      int
+	scheduleDraw  bool
 }
 
 const (
-	WIDTH     = 1920
-	HEIGHT    = 1080
-	TILE_SIZE = 128
+	Width    = 1920
+	Height   = 1080
+	TileSize = 128
 )
 
 func (g *Game) Update() error {
@@ -59,6 +64,7 @@ func (g *Game) Update() error {
 						g.selectedPiece = i
 						g.selected[0] = float64(x)/1.5 - 30
 						g.selected[1] = float64(y)/1.5 - 30
+						g.scheduleDraw = true
 						break
 					}
 				}
@@ -77,6 +83,7 @@ func (g *Game) Update() error {
 			g.pieces[g.selectedPiece].col = g.boardCol
 			//TODO make this work and delete the following
 			g.selectedPiece = -1
+			g.scheduleDraw = true
 		}
 	}
 
@@ -101,8 +108,19 @@ func (g *Game) CheckPieces(row int, col int, takeIt bool) int {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 
-	// Draw pieces on the board, etc
-	g.board.Draw(g.gameImage, g.pieces, g.selected, g.selectedPiece, g.boardCol, g.boardRow)
+	g.board.DrawHighlightedTiles(g.gameImage, g.boardCol, g.boardRow)
+
+	// no moving pieces
+	if g.selectedPiece != -1 {
+		g.board.DrawMovingPiece(g.gameImage, g.pieces, g.selected, g.selectedPiece)
+	}
+
+	// if game logic signals that piece locations have changed, then DrawStaticPieces, and...
+	// stop scheduling draw because we did the update to the static piece image
+	if g.scheduleDraw {
+		g.board.DrawStaticPieces(g.pieceImage, g.pieces, g.selectedPiece)
+		g.scheduleDraw = false
+	}
 
 	op := &ebiten.DrawImageOptions{}
 	sw, sh := screen.Size()
@@ -113,17 +131,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	screen.DrawImage(g.boardImage, op)
 	screen.DrawImage(g.gameImage, op)
+	screen.DrawImage(g.pieceImage, op)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return WIDTH, HEIGHT
+	return Width, Height
 }
 
 func main() {
 	game := &Game{}
 	game.InitBoard()
 	game.InitPieces()
-	ebiten.SetWindowSize(WIDTH/2, HEIGHT/2)
+	ebiten.SetWindowSize(Width/2, Height/2)
 	ebiten.SetWindowTitle("chess")
 	ebiten.SetFullscreen(true)
 	//ebiten.SetScreenClearedEveryFrame(false)
@@ -170,27 +189,20 @@ func (g *Game) InitPieces() {
 	g.pieces[30] = &Piece{1, 6, 7, true}
 	g.pieces[31] = &Piece{3, 7, 7, true}
 
-	for i := 0; i < len(g.pieces); i++ {
-		tx := float64(g.pieces[i].col*TILE_SIZE) + 465
-		ty := float64(g.pieces[i].row*TILE_SIZE) + 42
-
-		opPiece := &ebiten.DrawImageOptions{}
-		opPiece.GeoM.Scale(1.5, 1.5) //essentially W x H = 90 x 90
-		opPiece.GeoM.Translate(tx, ty)
-
-		g.gameImage.DrawImage(g.pieces[i].GetImage(), opPiece)
-	}
+	g.pieceImage = ebiten.NewImage(Width, Height)
+	g.board.DrawStaticPieces(g.pieceImage, g.pieces, g.selectedPiece)
+	g.scheduleDraw = false
 }
 
 func (g *Game) InitBoard() {
-	g.gameImage = ebiten.NewImage(WIDTH, HEIGHT)
-	g.boardImage = ebiten.NewImage(WIDTH, HEIGHT)
+	g.gameImage = ebiten.NewImage(Width, Height)
+	g.boardImage = ebiten.NewImage(Width, Height)
 	g.boardImage.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
 	darkColor := color.RGBA{R: 0xbb, G: 0x99, B: 0x55, A: 0xff}
 	lightColor := color.RGBA{R: 0xcb, G: 0xbe, B: 0xb5, A: 0xff}
 
-	tileImage := ebiten.NewImage(TILE_SIZE, TILE_SIZE)
-	lightImage := ebiten.NewImage(TILE_SIZE*8, TILE_SIZE*8)
+	tileImage := ebiten.NewImage(TileSize, TileSize)
+	lightImage := ebiten.NewImage(TileSize*8, TileSize*8)
 
 	// Drawing one big light square to cut down on draw ops
 	opLight := &ebiten.DrawImageOptions{}
@@ -203,7 +215,7 @@ func (g *Game) InitBoard() {
 		for c := 0; c < 8; c++ {
 			if (r%2 == 0 && c%2 != 0) || (r%2 != 0 && c%2 == 0) {
 				opDark := &ebiten.DrawImageOptions{}
-				opDark.GeoM.Translate(float64(c*TILE_SIZE+448), float64(r*TILE_SIZE+28))
+				opDark.GeoM.Translate(float64(c*TileSize+448), float64(r*TileSize+28))
 				tileImage.Fill(darkColor)
 				g.boardImage.DrawImage(tileImage, opDark)
 			}
