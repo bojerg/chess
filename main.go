@@ -14,6 +14,7 @@ import (
 // gameImage is the most foreground-- like moving pieces, selected tiles, UI, etc
 // board is becoming just draw functions for pieces on the board, needs a name refactor
 // boardImage is, well, the board image
+// movingImage is the moving piece
 // pieceImage is a static image of where pieces lay
 // pieces is an array of all the pieces...
 // selected is for the x, y values of a piece in motion
@@ -25,6 +26,7 @@ type Game struct {
 	gameImage     *ebiten.Image
 	board         *Board
 	boardImage    *ebiten.Image
+	movingImage   *ebiten.Image
 	pieceImage    *ebiten.Image
 	pieces        [32]*Piece
 	selected      [2]float64
@@ -112,8 +114,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.board.DrawHighlightedTiles(g.gameImage, g.selectedCol, g.selectedRow)
 
 	// no moving pieces
+	g.movingImage.Clear()
 	if g.selectedPiece != -1 {
-		g.board.DrawMovingPiece(g.gameImage, g.pieces, g.selected, g.selectedPiece)
+		g.board.DrawMovingPiece(g.movingImage, g.pieces, g.selected, g.selectedPiece)
 	}
 
 	// if game logic signals that piece locations have changed, then DrawStaticPieces, and...
@@ -133,6 +136,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.DrawImage(g.boardImage, op)
 	screen.DrawImage(g.gameImage, op)
 	screen.DrawImage(g.pieceImage, op)
+	screen.DrawImage(g.movingImage, op)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -205,6 +209,7 @@ func (g *Game) InitBoard() {
 	darkImage := ebiten.NewImage(TileSize, TileSize)
 	g.gameImage = ebiten.NewImage(Width, Height)
 	g.boardImage = ebiten.NewImage(Width, Height)
+	g.movingImage = ebiten.NewImage(Width, Height)
 	g.boardImage.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
 	darkColor := color.RGBA{R: 0xbb, G: 0x99, B: 0x55, A: 0xff}
 	lightColor := color.RGBA{R: 0xcb, G: 0xbe, B: 0xb5, A: 0xff}

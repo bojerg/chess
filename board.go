@@ -24,7 +24,7 @@ func (b *Board) DrawStaticPieces(pieceImage *ebiten.Image, pieces [32]*Piece, se
 	}
 }
 
-func (b *Board) DrawMovingPiece(gameImage *ebiten.Image, pieces [32]*Piece, selected [2]float64, selectedPiece int) {
+func (b *Board) DrawMovingPiece(movingImage *ebiten.Image, pieces [32]*Piece, selected [2]float64, selectedPiece int) {
 	for i := 0; i < len(pieces); i++ {
 		if i == selectedPiece {
 			tx := selected[0] * 1.5
@@ -32,7 +32,7 @@ func (b *Board) DrawMovingPiece(gameImage *ebiten.Image, pieces [32]*Piece, sele
 			opPiece := &ebiten.DrawImageOptions{}
 			opPiece.GeoM.Scale(1.5, 1.5) //essentially W x H = 90 x 90
 			opPiece.GeoM.Translate(tx, ty)
-			gameImage.DrawImage(pieces[i].GetImage(), opPiece)
+			movingImage.DrawImage(pieces[i].GetImage(), opPiece)
 			break
 		}
 	}
