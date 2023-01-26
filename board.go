@@ -5,7 +5,14 @@ import (
 	"image/color"
 )
 
+// Board
+// A collection of helper functions to render the images displayed every frame
+// whitesTurn... true if it's white's turn, duh!
+// scheduleDraw bool is a sentinel value to indicate that the piece locations have changed
+// and the pieceImage should be redrawn
 type Board struct {
+	whitesTurn   bool
+	scheduleDraw bool
 }
 
 func (b *Board) DrawStaticPieces(pieceImage *ebiten.Image, pieces [32]*Piece, selectedPiece int) {
@@ -54,6 +61,32 @@ func (b *Board) DrawHighlightedTiles(gameImage *ebiten.Image, selectedCol int, s
 				gameImage.DrawImage(tileImage, opTile)
 				break
 			}
+		}
+	}
+}
+
+func (b *Board) DrawBoard(boardImage *ebiten.Image) {
+	boardImage.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
+	darkColor := color.RGBA{R: 0xbb, G: 0x99, B: 0x55, A: 0xff}
+	lightColor := color.RGBA{R: 0xcb, G: 0xbe, B: 0xb5, A: 0xff}
+
+	lightImage := ebiten.NewImage(TileSize*8, TileSize*8)
+	darkImage := ebiten.NewImage(TileSize, TileSize)
+
+	// Drawing one big light square to (slightly) cut down on draw ops
+	opLight := &ebiten.DrawImageOptions{}
+	opLight.GeoM.Translate(448, 28)
+	lightImage.Fill(lightColor)
+	boardImage.DrawImage(lightImage, opLight)
+	for row := 0; row < 8; row++ {
+		for col := 0; col < 8; col++ {
+			if (row%2 == 0 && col%2 != 0) || (row%2 != 0 && col%2 == 0) {
+				opDark := &ebiten.DrawImageOptions{}
+				opDark.GeoM.Translate(float64(col*TileSize+448), float64(row*TileSize+28))
+				darkImage.Fill(darkColor)
+				boardImage.DrawImage(darkImage, opDark)
+			}
+
 		}
 	}
 }

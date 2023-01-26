@@ -15,10 +15,10 @@ import (
 // col, row: identifies location on chess board
 // white: If on team white, is true
 type Piece struct {
-	id    int
-	col   int
-	row   int
-	white bool
+	id         int
+	col        int
+	row        int
+	whitePiece bool
 }
 
 // GetName primarily intended for debugging
@@ -40,7 +40,7 @@ func (p *Piece) GetName() string {
 		ret = "King"
 	}
 
-	if p.white {
+	if p.whitePiece {
 		ret += ", white"
 	} else {
 		ret += ", black"
@@ -57,47 +57,47 @@ func (p *Piece) GetImage() *ebiten.Image {
 	filepathStr := "images/"
 	switch p.id {
 	case 0:
-		if p.white {
+		if p.whitePiece {
 			filepathStr += "whitePawn.png"
 		} else {
 			filepathStr += "blackPawn.png"
 		}
 	case 1:
-		if p.white {
+		if p.whitePiece {
 			filepathStr += "whiteKnight.png"
 		} else {
 			filepathStr += "blackKnight.png"
 		}
 
 	case 2:
-		if p.white {
+		if p.whitePiece {
 			filepathStr += "whiteBishop.png"
 		} else {
 			filepathStr += "blackBishop.png"
 		}
 
 	case 3:
-		if p.white {
+		if p.whitePiece {
 			filepathStr += "whiteRook.png"
 		} else {
 			filepathStr += "blackRook.png"
 		}
 
 	case 4:
-		if p.white {
+		if p.whitePiece {
 			filepathStr += "whiteQueen.png"
 		} else {
 			filepathStr += "blackQueen.png"
 		}
 
 	case 5:
-		if p.white {
+		if p.whitePiece {
 			filepathStr += "whiteKing.png"
 		} else {
 			filepathStr += "blackKing.png"
 		}
 	default:
-		fmt.Println("...wtf")
+		fmt.Println("piece.GetImage(), switch input: ", p.id)
 	}
 
 	var err error = nil

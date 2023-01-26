@@ -5,7 +5,6 @@ package main
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	_ "github.com/silbinarywolf/preferdiscretegpu" // Fix for discrete GPUs in windows
-	"image/color"
 	"log"
 	"math"
 )
@@ -20,8 +19,7 @@ import (
 // selected is for the x, y values of a piece in motion
 // selectedPiece is the index of the selected piece... -1 means none
 // selectedCol, selectedRow is the hovered over/selected board square
-// scheduleDraw bool is a sentinel value to indicate that the piece locations have changed
-// and the pieceImage should be redrawn
+
 type Game struct {
 	gameImage     *ebiten.Image
 	board         *Board
@@ -33,7 +31,6 @@ type Game struct {
 	selectedPiece int
 	selectedCol   int
 	selectedRow   int
-	scheduleDraw  bool
 }
 
 const (
@@ -61,21 +58,23 @@ func (g *Game) Update() error {
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		// No piece selected but left mouse is held down
 		if g.selectedPiece == -1 {
-			// figure out which piece is selected
+			// Match the selected tile to a piece location. Then, ensure the piece belongs to the
+			// team whose turn it currently is, and that it is still in play.
 			for i := 0; i < len(g.pieces); i++ {
-				if g.pieces[i].col == g.selectedCol {
-					if g.pieces[i].row == g.selectedRow {
+				if g.pieces[i].col == g.selectedCol && g.pieces[i].row == g.selectedRow {
+					if g.pieces[i].id != 6 && g.board.whitesTurn == g.pieces[i].whitePiece {
 						g.selectedPiece = i
 						// store the xy coordinates of the cursor
 						g.selected[0] = float64(x)/1.5 - 30
 						g.selected[1] = float64(y)/1.5 - 30
-						g.scheduleDraw = true
+						g.board.scheduleDraw = true
 						break
 					}
 				}
 			}
 		} else {
 			// update current mouse position because piece is still selected
+			// and the mouse may be moving!
 			g.selected[0] = float64(x)/1.5 - 30
 			g.selected[1] = float64(y)/1.5 - 30
 		}
@@ -87,7 +86,8 @@ func (g *Game) Update() error {
 			g.pieces[g.selectedPiece].row = g.selectedRow
 			g.pieces[g.selectedPiece].col = g.selectedCol
 			g.selectedPiece = -1
-			g.scheduleDraw = true
+			g.board.whitesTurn = !g.board.whitesTurn
+			g.board.scheduleDraw = true
 		}
 	}
 
@@ -102,6 +102,8 @@ func (g *Game) CheckPieces(row int, col int, takeIt bool) int {
 		if piece.row == row && piece.col == col {
 			if takeIt && i != g.selectedPiece {
 				piece.id = 6 // 6 = piece taken
+				piece.row = -1
+				piece.col = -1
 			}
 			return i
 		}
@@ -121,9 +123,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// if game logic signals that piece locations have changed, then DrawStaticPieces, and...
 	// stop scheduling draw because we did the update to the static piece image
-	if g.scheduleDraw {
+	if g.board.scheduleDraw {
 		g.board.DrawStaticPieces(g.pieceImage, g.pieces, g.selectedPiece)
-		g.scheduleDraw = false
+		g.board.scheduleDraw = false
 	}
 
 	op := &ebiten.DrawImageOptions{}
@@ -146,18 +148,32 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 func main() {
 	game := &Game{}
 	game.InitBoard()
-	game.InitPieces()
 	ebiten.SetWindowSize(Width/2, Height/2)
 	ebiten.SetWindowTitle("chess")
 	ebiten.SetFullscreen(true)
-	//ebiten.SetScreenClearedEveryFrame(false)
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
 }
 
+// InitBoard
+// The "Board" struct currently provides only helper functions which are drawn over the board's spaces. The board
+// image which is seen on screen is rendered in this function, after assigning a few variables.
+func (g *Game) InitBoard() {
+	g.board = &Board{}
+	g.boardImage = ebiten.NewImage(Width, Height)
+	g.gameImage = ebiten.NewImage(Width, Height)
+	g.pieceImage = ebiten.NewImage(Width, Height)
+	g.movingImage = ebiten.NewImage(Width, Height)
+	g.InitPieces()
+	g.board.DrawBoard(g.boardImage)
+	g.board.DrawStaticPieces(g.pieceImage, g.pieces, g.selectedPiece)
+	g.board.whitesTurn = true
+	g.board.scheduleDraw = false
+}
+
 // InitPieces
-// Assign variables with starting positions. Render the first image of the pieces in their starting positions.
+// Assign variables with starting positions.
 func (g *Game) InitPieces() {
 	g.selectedPiece = -1
 	g.selected[0] = 0.0
@@ -195,39 +211,4 @@ func (g *Game) InitPieces() {
 	g.pieces[29] = &Piece{2, 5, 7, true}
 	g.pieces[30] = &Piece{1, 6, 7, true}
 	g.pieces[31] = &Piece{3, 7, 7, true}
-
-	g.pieceImage = ebiten.NewImage(Width, Height)
-	g.board.DrawStaticPieces(g.pieceImage, g.pieces, g.selectedPiece)
-	g.scheduleDraw = false
-}
-
-// InitBoard
-// The "Board" struct currently provides only helper functions which are drawn over the board's spaces. The board
-// image which is seen on screen is rendered in this function, after assigning a few variables.
-func (g *Game) InitBoard() {
-	lightImage := ebiten.NewImage(TileSize*8, TileSize*8)
-	darkImage := ebiten.NewImage(TileSize, TileSize)
-	g.gameImage = ebiten.NewImage(Width, Height)
-	g.boardImage = ebiten.NewImage(Width, Height)
-	g.movingImage = ebiten.NewImage(Width, Height)
-	g.boardImage.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
-	darkColor := color.RGBA{R: 0xbb, G: 0x99, B: 0x55, A: 0xff}
-	lightColor := color.RGBA{R: 0xcb, G: 0xbe, B: 0xb5, A: 0xff}
-
-	// Drawing one big light square to (slightly) cut down on draw ops
-	opLight := &ebiten.DrawImageOptions{}
-	opLight.GeoM.Translate(448, 28)
-	lightImage.Fill(lightColor)
-	g.boardImage.DrawImage(lightImage, opLight)
-	for row := 0; row < 8; row++ {
-		for col := 0; col < 8; col++ {
-			if (row%2 == 0 && col%2 != 0) || (row%2 != 0 && col%2 == 0) {
-				opDark := &ebiten.DrawImageOptions{}
-				opDark.GeoM.Translate(float64(col*TileSize+448), float64(row*TileSize+28))
-				darkImage.Fill(darkColor)
-				g.boardImage.DrawImage(darkImage, opDark)
-			}
-
-		}
-	}
 }
