@@ -62,7 +62,7 @@ func (g *Game) Update() error {
 			// team whose turn it currently is, and that it is still in play.
 			for i := 0; i < len(g.pieces); i++ {
 				if g.pieces[i].col == g.selectedCol && g.pieces[i].row == g.selectedRow {
-					if g.pieces[i].id != 6 && g.board.whitesTurn == g.pieces[i].whitePiece {
+					if g.pieces[i].id != 6 && g.board.whitesTurn == g.pieces[i].white {
 						g.selectedPiece = i
 						// store the xy coordinates of the cursor
 						g.selected[0] = float64(x)/1.5 - 30
