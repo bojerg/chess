@@ -15,14 +15,25 @@ type Board struct {
 	scheduleDraw bool
 }
 
-func (b *Board) DrawStaticPieces(pieceImage *ebiten.Image, pieces [32]*Piece, selectedPiece int) {
+// GetPieceOnSquare checks list of ChessPiece against provided row and col positions. If a match
+// is found, a copy of that piece is returned. Otherwise, returns nil.
+func GetPieceOnSquare(row int, col int, pieces [32]ChessPiece) ChessPiece {
+	for _, piece := range pieces {
+		if piece.GetCol() == col && piece.GetRow() == row {
+			return piece
+		}
+	}
+	return nil
+}
+
+func (b *Board) DrawStaticPieces(pieceImage *ebiten.Image, pieces [32]ChessPiece, selectedPiece int) {
 	pieceImage.Clear()
 
 	for i := 0; i < len(pieces); i++ {
 		// Don't draw selected (moving) piece, or any pieces with id of 6 (taken)
-		if i != selectedPiece && pieces[i].id != 6 {
-			tx := float64(pieces[i].col*TileSize) + 465
-			ty := float64(pieces[i].row*TileSize) + 42
+		if i != selectedPiece && pieces[i].GetCol() != -1 {
+			tx := float64(pieces[i].GetCol()*TileSize) + 465
+			ty := float64(pieces[i].GetRow()*TileSize) + 42
 			opPiece := &ebiten.DrawImageOptions{}
 			opPiece.GeoM.Scale(1.5, 1.5) //essentially W x H = 90 x 90
 			opPiece.GeoM.Translate(tx, ty)
@@ -31,7 +42,7 @@ func (b *Board) DrawStaticPieces(pieceImage *ebiten.Image, pieces [32]*Piece, se
 	}
 }
 
-func (b *Board) DrawMovingPiece(movingImage *ebiten.Image, pieces [32]*Piece, selected [2]float64, selectedPiece int) {
+func (b *Board) DrawMovingPiece(movingImage *ebiten.Image, pieces [32]ChessPiece, selected [2]float64, selectedPiece int) {
 	for i := 0; i < len(pieces); i++ {
 		if i == selectedPiece {
 			tx := selected[0] * 1.5

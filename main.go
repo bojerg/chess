@@ -26,7 +26,7 @@ type Game struct {
 	boardImage    *ebiten.Image
 	movingImage   *ebiten.Image
 	pieceImage    *ebiten.Image
-	pieces        [32]*Piece
+	pieces        [32]ChessPiece
 	selected      [2]float64
 	selectedPiece int
 	selectedCol   int
@@ -61,8 +61,8 @@ func (g *Game) Update() error {
 			// Match the selected tile to a piece location. Then, ensure the piece belongs to the
 			// team whose turn it currently is, and that it is still in play.
 			for i := 0; i < len(g.pieces); i++ {
-				if g.pieces[i].col == g.selectedCol && g.pieces[i].row == g.selectedRow {
-					if g.pieces[i].id != 6 && g.board.whitesTurn == g.pieces[i].white {
+				if g.pieces[i].GetCol() == g.selectedCol && g.pieces[i].GetRow() == g.selectedRow {
+					if g.pieces[i].GetCol() != -1 && g.board.whitesTurn == g.pieces[i].White() {
 						g.selectedPiece = i
 						// store the xy coordinates of the cursor
 						g.selected[0] = float64(x)/1.5 - 30
@@ -83,8 +83,8 @@ func (g *Game) Update() error {
 			// piece is asking to be let go of at it the current mouse position
 			// TODO rules check goes here
 			g.CheckPieces(g.selectedRow, g.selectedCol, true)
-			g.pieces[g.selectedPiece].row = g.selectedRow
-			g.pieces[g.selectedPiece].col = g.selectedCol
+			g.pieces[g.selectedPiece].SetRow(g.selectedRow)
+			g.pieces[g.selectedPiece].SetCol(g.selectedCol)
 			g.selectedPiece = -1
 			g.board.whitesTurn = !g.board.whitesTurn
 			g.board.scheduleDraw = true
@@ -99,11 +99,9 @@ func (g *Game) Update() error {
 // The game's logic should prevent this from running if no piece index is stored in selectedPiece int...
 func (g *Game) CheckPieces(row int, col int, takeIt bool) int {
 	for i, piece := range g.pieces {
-		if piece.row == row && piece.col == col {
+		if piece.GetRow() == row && piece.GetCol() == col {
 			if takeIt && i != g.selectedPiece {
-				piece.id = 6 // 6 = piece taken
-				piece.row = -1
-				piece.col = -1
+				piece.SetCol(-1) // Col of -1 is de facto notation for piece taken
 			}
 			return i
 		}
@@ -178,37 +176,36 @@ func (g *Game) InitPieces() {
 	g.selectedPiece = -1
 	g.selected[0] = 0.0
 	g.selected[1] = 0.0
-	g.pieces[0] = &Piece{3, 0, 0, false}
-	g.pieces[1] = &Piece{1, 1, 0, false}
-	g.pieces[2] = &Piece{2, 2, 0, false}
-	g.pieces[3] = &Piece{4, 3, 0, false}
-	g.pieces[4] = &Piece{5, 4, 0, false}
-	g.pieces[5] = &Piece{2, 5, 0, false}
-	g.pieces[6] = &Piece{1, 6, 0, false}
-	g.pieces[7] = &Piece{3, 7, 0, false}
-	g.pieces[8] = &Piece{0, 0, 1, false}
-	g.pieces[9] = &Piece{0, 1, 1, false}
-	g.pieces[10] = &Piece{0, 2, 1, false}
-	g.pieces[11] = &Piece{0, 3, 1, false}
-	g.pieces[12] = &Piece{0, 4, 1, false}
-	g.pieces[13] = &Piece{0, 5, 1, false}
-	g.pieces[14] = &Piece{0, 6, 1, false}
-	g.pieces[15] = &Piece{0, 7, 1, false}
-	g.pieces[16] = &Piece{0, 0, 6, true}
-	g.pieces[17] = &Piece{0, 1, 6, true}
-	g.pieces[18] = &Piece{0, 2, 6, true}
-	g.pieces[19] = &Piece{0, 3, 6, true}
-	g.pieces[20] = &Piece{0, 4, 6, true}
-	g.pieces[21] = &Piece{0, 5, 6, true}
-	g.pieces[22] = &Piece{0, 6, 6, true}
-	g.pieces[23] = &Piece{0, 7, 6, true}
-	g.pieces[24] = &Piece{3, 0, 7, true}
-	g.pieces[25] = &Piece{1, 1, 7, true}
-	g.pieces[26] = &Piece{2, 2, 7, true}
-	g.pieces[26] = &Piece{2, 2, 7, true}
-	g.pieces[27] = &Piece{4, 3, 7, true}
-	g.pieces[28] = &Piece{5, 4, 7, true}
-	g.pieces[29] = &Piece{2, 5, 7, true}
-	g.pieces[30] = &Piece{1, 6, 7, true}
-	g.pieces[31] = &Piece{3, 7, 7, true}
+	g.pieces[0] = &Rook{Piece{0, 0, false}}
+	g.pieces[1] = &Knight{Piece{1, 0, false}}
+	g.pieces[2] = &Bishop{Piece{2, 0, false}}
+	g.pieces[3] = &Queen{Piece{3, 0, false}}
+	g.pieces[4] = &King{Piece{4, 0, false}}
+	g.pieces[5] = &Bishop{Piece{5, 0, false}}
+	g.pieces[6] = &Knight{Piece{6, 0, false}}
+	g.pieces[7] = &Rook{Piece{7, 0, false}}
+	g.pieces[8] = &Pawn{Piece{0, 1, false}}
+	g.pieces[9] = &Pawn{Piece{1, 1, false}}
+	g.pieces[10] = &Pawn{Piece{2, 1, false}}
+	g.pieces[11] = &Pawn{Piece{3, 1, false}}
+	g.pieces[12] = &Pawn{Piece{4, 1, false}}
+	g.pieces[13] = &Pawn{Piece{5, 1, false}}
+	g.pieces[14] = &Pawn{Piece{6, 1, false}}
+	g.pieces[15] = &Pawn{Piece{7, 1, false}}
+	g.pieces[16] = &Pawn{Piece{0, 6, true}}
+	g.pieces[17] = &Pawn{Piece{1, 6, true}}
+	g.pieces[18] = &Pawn{Piece{2, 6, true}}
+	g.pieces[19] = &Pawn{Piece{3, 6, true}}
+	g.pieces[20] = &Pawn{Piece{4, 6, true}}
+	g.pieces[21] = &Pawn{Piece{5, 6, true}}
+	g.pieces[22] = &Pawn{Piece{6, 6, true}}
+	g.pieces[23] = &Pawn{Piece{7, 6, true}}
+	g.pieces[24] = &Rook{Piece{0, 7, true}}
+	g.pieces[25] = &Knight{Piece{1, 7, true}}
+	g.pieces[26] = &Bishop{Piece{2, 7, true}}
+	g.pieces[27] = &Queen{Piece{3, 7, true}}
+	g.pieces[28] = &King{Piece{4, 7, true}}
+	g.pieces[29] = &Bishop{Piece{5, 7, true}}
+	g.pieces[30] = &Knight{Piece{6, 7, true}}
+	g.pieces[31] = &Rook{Piece{0, 7, true}}
 }
