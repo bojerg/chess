@@ -1,31 +1,63 @@
 package main
 
-import "github.com/hajimehoshi/ebiten/v2"
+import (
+	"github.com/hajimehoshi/ebiten/v2"
+)
 
 type Pawn struct {
 	Piece
 }
 
-// GetMoves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
+// GetMoves returns a slice of all possible moves (may include invalid moves) for given Piece. Each valid move in the slice is stored
 // in an array with a length of two-- Row and Col.
-// TODO Add checkmate checks
 func (p *Pawn) GetMoves(pieces [32]ChessPiece) [][2]int {
-	moves := make([][2]int, 2)
+	moves := make([][2]int, 0)
 
 	// TODO add en passant, or however you spell that move
 	if p.white {
 		// white pawn on starting position, so could move forward one or two
 		if p.row == 6 {
 			moves = append(moves, [2]int{4, p.col}, [2]int{5, p.col})
-			//TODO check for available pawn takes
-			//GetPiecesOnSquare + validate position is in bounds of the board
+		} else {
+			// white pawn not on starting position
+			moves = append(moves, [2]int{p.row - 1, p.col})
 		}
+
+		//now checking for takes
+		if GetPieceOnSquare(p.row-1, p.col+1, pieces) != nil {
+			moves = append(moves, [2]int{p.row - 1, p.col + 1})
+		}
+		if GetPieceOnSquare(p.row-1, p.col-1, pieces) != nil {
+			moves = append(moves, [2]int{p.row - 1, p.col - 1})
+		}
+
 	} else {
 		// black pawn on starting position, so could move forward one or two
 		if p.row == 1 {
 			moves = append(moves, [2]int{3, p.col}, [2]int{2, p.col})
+		} else {
+			// black pawn not on starting position
+			moves = append(moves, [2]int{p.row + 1, p.col})
+		}
+
+		//now checking for takes
+		if GetPieceOnSquare(p.row+1, p.col+1, pieces) != nil {
+			moves = append(moves, [2]int{p.row + 1, p.col + 1})
+		}
+		if GetPieceOnSquare(p.row+1, p.col-1, pieces) != nil {
+			moves = append(moves, [2]int{p.row + 1, p.col - 1})
 		}
 	}
+
+	//should loop through and remove invalid indices (outside bounds of the board)
+	for i, move := range moves {
+		if move[0] > 8 || move[0] < 0 || move[1] > 8 || move[1] < 0 {
+			//https://www.geeksforgeeks.org/delete-elements-in-a-slice-in-golang/
+			//removing the move from the slice
+			moves = append(moves[:i], moves[i+1:]...)
+		}
+	}
+
 	return moves
 }
 
@@ -45,7 +77,7 @@ func (p *Pawn) GetImage() *ebiten.Image {
 	} else {
 		filepathStr += "blackPawn.png"
 	}
-	// Reusing the Piece GetImage for filesystem functionality
+	// Reusing the piece.go GetImage for filesystem functionality
 	return GetImage(filepathStr)
 }
 

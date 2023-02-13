@@ -86,7 +86,6 @@ func (g *Game) Update() error {
 			g.pieces[g.selectedPiece].SetRow(g.selectedRow)
 			g.pieces[g.selectedPiece].SetCol(g.selectedCol)
 			g.selectedPiece = -1
-			g.board.whitesTurn = !g.board.whitesTurn
 			g.board.scheduleDraw = true
 		}
 	}
@@ -101,17 +100,22 @@ func (g *Game) CheckPieces(row int, col int, takeIt bool) int {
 	for i, piece := range g.pieces {
 		if piece.GetRow() == row && piece.GetCol() == col {
 			if takeIt && i != g.selectedPiece {
-				piece.SetCol(-1) // Col of -1 is de facto notation for piece taken
+				piece.SetCol(-1)                         // Col of -1 is de facto notation for piece taken
+				g.board.whitesTurn = !g.board.whitesTurn //switch turns
+				return i
+			} else if i == g.selectedPiece {
+				return i
 			}
-			return i
 		}
 	}
 
+	//We get here if there was no piece on the square
+	g.board.whitesTurn = !g.board.whitesTurn //switch turns
 	return -1
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	g.board.DrawHighlightedTiles(g.gameImage, g.selectedCol, g.selectedRow)
+	g.board.DrawHighlightedTiles(g.gameImage, g.selectedRow, g.selectedCol, g.selectedPiece, g.pieces)
 
 	// no moving pieces
 	g.movingImage.Clear()

@@ -56,16 +56,29 @@ func (b *Board) DrawMovingPiece(movingImage *ebiten.Image, pieces [32]ChessPiece
 	}
 }
 
-func (b *Board) DrawHighlightedTiles(gameImage *ebiten.Image, selectedCol int, selectedRow int) {
+func (b *Board) DrawHighlightedTiles(gameImage *ebiten.Image, selectRow int, selectCol int, selectIndex int, pieces [32]ChessPiece) {
 	tileImage := ebiten.NewImage(TileSize, TileSize)
 	gameImage.Clear()
 
-	// Row, Column
-	// Draw selected tile
+	// drawing highlighted tiles (available moves in red)
+	if selectIndex >= 0 {
+		if pieces[selectIndex].GetName() == "White pawn" || pieces[selectIndex].GetName() == "Black pawn" {
+			availableMoves := pieces[selectIndex].GetMoves(pieces)
+			if availableMoves != nil {
+				for _, move := range availableMoves {
+					opTile := &ebiten.DrawImageOptions{}
+					opTile.GeoM.Translate(float64(move[1]*TileSize+448), float64(move[0]*TileSize+28))
+					tileImage.Fill(color.RGBA{R: 0xff, G: 0x06, B: 0x03, A: 0xba})
+					gameImage.DrawImage(tileImage, opTile)
+				}
+			}
+		}
+	}
+
+	// Draw hovered tile (in highlighter yellow)
 	for r := 0; r < 8; r++ {
 		for c := 0; c < 8; c++ {
-			//TODO color in available moves for a selected piece as well?
-			if r == selectedRow && c == selectedCol {
+			if r == selectRow && c == selectCol {
 				opTile := &ebiten.DrawImageOptions{}
 				opTile.GeoM.Translate(float64(c*TileSize+448), float64(r*TileSize+28))
 				tileImage.Fill(color.RGBA{R: 0xea, G: 0xdd, B: 0x23, A: 0xff})
