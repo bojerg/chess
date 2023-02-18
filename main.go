@@ -1,5 +1,3 @@
-//go:build ebitenginesinglethread
-
 package main
 
 import (
@@ -60,9 +58,9 @@ func (g *Game) Update() error {
 		if g.selectedPiece == -1 {
 			// Match the selected tile to a piece location. Then, ensure the piece belongs to the
 			// team whose turn it currently is, and that it is still in play.
-			for i := 0; i < len(g.pieces); i++ {
-				if g.pieces[i].GetCol() == g.selectedCol && g.pieces[i].GetRow() == g.selectedRow {
-					if g.pieces[i].GetCol() != -1 && g.board.whitesTurn == g.pieces[i].White() {
+			for i, piece := range g.pieces {
+				if piece.GetCol() == g.selectedCol && piece.GetRow() == g.selectedRow {
+					if piece.GetCol() != -1 && g.board.whitesTurn == piece.White() {
 						g.selectedPiece = i
 						// store the xy coordinates of the cursor
 						g.selected[0] = float64(x)/1.5 - 30
@@ -79,39 +77,60 @@ func (g *Game) Update() error {
 			g.selected[1] = float64(y)/1.5 - 30
 		}
 	} else { // MouseButtonLeft is not pressed
+		//If we do have a piece selected
 		if g.selectedPiece != -1 {
 			// piece is asking to be let go of at it the current mouse position
-			// TODO rules check goes here
-			g.CheckPieces(g.selectedRow, g.selectedCol, true)
-			g.pieces[g.selectedPiece].SetRow(g.selectedRow)
-			g.pieces[g.selectedPiece].SetCol(g.selectedCol)
-			g.selectedPiece = -1
+			// Verify the move if the piece is being set down on a different square than it started on
+			if g.pieces[g.selectedPiece].GetCol() != g.selectedCol || g.pieces[g.selectedPiece].GetRow() != g.selectedRow {
+				if g.MoveIsLegal(g.selectedRow, g.selectedCol) {
+					g.pieces[g.selectedPiece].SetRow(g.selectedRow)
+					g.pieces[g.selectedPiece].SetCol(g.selectedCol)
+				}
+			}
+
+			//Either way, we need to update the board image and clear selectedPiece index
 			g.board.scheduleDraw = true
+			g.selectedPiece = -1
 		}
 	}
 
 	return nil
 }
 
-// CheckPieces checks if there is a piece on the square and will set any piece there to id = 6 (taken) if
-// the "takeIt" bool is true. It returns the index of the piece in the game's pieces array, or -1 if none found.
-// The game's logic should prevent this from running if no piece index is stored in selectedPiece int...
-func (g *Game) CheckPieces(row int, col int, takeIt bool) int {
-	for i, piece := range g.pieces {
-		if piece.GetRow() == row && piece.GetCol() == col {
-			if takeIt && i != g.selectedPiece {
-				piece.SetCol(-1)                         // Col of -1 is de facto notation for piece taken
-				g.board.whitesTurn = !g.board.whitesTurn //switch turns
-				return i
-			} else if i == g.selectedPiece {
-				return i
+// MoveIsLegal handles three things: Checking if a move is legal, removing a taken piece from the
+// game if the move was legal, and handling the switching of turns. It returns true if the move was
+// legal and executable, or false if it could not be completed.
+func (g *Game) MoveIsLegal(row int, col int) bool {
+	//check if move is legal
+	//just checking through legal moves to verify this move is present
+	legalMoves := g.pieces[g.selectedPiece].GetMoves(g.pieces)
+	legal := false
+
+	if legalMoves != nil {
+		for _, move := range legalMoves {
+			if move[0] == row && move[1] == col {
+				legal = true
+				break
+			}
+		}
+	} else {
+		//For now, just indicates that this piece has not had moves programmed yet and all moves legal
+		legal = true
+	}
+	if legal {
+		g.board.whitesTurn = !g.board.whitesTurn //switch turns
+		// If there's a piece on the square, we need to take it away!
+		for i, piece := range g.pieces {
+			if piece.GetRow() == row && piece.GetCol() == col {
+				if i != g.selectedPiece {
+					piece.SetCol(-1) // Col of -1 is de facto notation for piece taken
+					break
+				}
 			}
 		}
 	}
 
-	//We get here if there was no piece on the square
-	g.board.whitesTurn = !g.board.whitesTurn //switch turns
-	return -1
+	return legal
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -211,5 +230,5 @@ func (g *Game) InitPieces() {
 	g.pieces[28] = &King{Piece{4, 7, true}}
 	g.pieces[29] = &Bishop{Piece{5, 7, true}}
 	g.pieces[30] = &Knight{Piece{6, 7, true}}
-	g.pieces[31] = &Rook{Piece{0, 7, true}}
+	g.pieces[31] = &Rook{Piece{7, 7, true}}
 }

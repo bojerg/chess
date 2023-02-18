@@ -10,8 +10,8 @@ type Queen struct {
 // in an array with a length of two-- Row and Col.
 // TODO everything
 func (p *Queen) GetMoves(pieces [32]ChessPiece) [][2]int {
-	moves := make([][2]int, 2)
-	return moves
+	//moves := make([][2]int, 2)
+	return nil
 }
 
 // GetName primarily intended for debugging

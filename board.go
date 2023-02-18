@@ -15,23 +15,12 @@ type Board struct {
 	scheduleDraw bool
 }
 
-// GetPieceOnSquare checks list of ChessPiece against provided row and col positions. If a match
-// is found, a copy of that piece is returned. Otherwise, returns nil.
-func GetPieceOnSquare(row int, col int, pieces [32]ChessPiece) ChessPiece {
-	for _, piece := range pieces {
-		if piece.GetCol() == col && piece.GetRow() == row {
-			return piece
-		}
-	}
-	return nil
-}
-
 func (b *Board) DrawStaticPieces(pieceImage *ebiten.Image, pieces [32]ChessPiece, selectedPiece int) {
 	pieceImage.Clear()
 
-	for i := 0; i < len(pieces); i++ {
+	for i, piece := range pieces {
 		// Don't draw selected (moving) piece, or any pieces with id of 6 (taken)
-		if i != selectedPiece && pieces[i].GetCol() != -1 {
+		if i != selectedPiece && piece.GetCol() != -1 {
 			tx := float64(pieces[i].GetCol()*TileSize) + 465
 			ty := float64(pieces[i].GetRow()*TileSize) + 42
 			opPiece := &ebiten.DrawImageOptions{}
@@ -43,7 +32,7 @@ func (b *Board) DrawStaticPieces(pieceImage *ebiten.Image, pieces [32]ChessPiece
 }
 
 func (b *Board) DrawMovingPiece(movingImage *ebiten.Image, pieces [32]ChessPiece, selected [2]float64, selectedPiece int) {
-	for i := 0; i < len(pieces); i++ {
+	for i, _ := range pieces {
 		if i == selectedPiece {
 			tx := selected[0] * 1.5
 			ty := selected[1] * 1.5

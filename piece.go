@@ -45,3 +45,14 @@ func GetImage(filepathStr string) *ebiten.Image {
 	}
 
 }
+
+// GetPieceOnSquare checks list of ChessPiece against provided row and col positions. If a match
+// is found, a copy of that piece is returned. Otherwise, returns nil.
+func GetPieceOnSquare(row int, col int, pieces [32]ChessPiece) ChessPiece {
+	for _, piece := range pieces {
+		if piece.GetCol() == col && piece.GetRow() == row {
+			return piece
+		}
+	}
+	return nil
+}

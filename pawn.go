@@ -24,10 +24,13 @@ func (p *Pawn) GetMoves(pieces [32]ChessPiece) [][2]int {
 		}
 
 		//now checking for takes
-		if GetPieceOnSquare(p.row-1, p.col+1, pieces) != nil {
+		potentialTake := GetPieceOnSquare(p.row-1, p.col+1, pieces)
+		if potentialTake != nil && potentialTake.White() != p.white {
 			moves = append(moves, [2]int{p.row - 1, p.col + 1})
 		}
-		if GetPieceOnSquare(p.row-1, p.col-1, pieces) != nil {
+
+		potentialTake = GetPieceOnSquare(p.row-1, p.col-1, pieces)
+		if potentialTake != nil && potentialTake.White() != p.white {
 			moves = append(moves, [2]int{p.row - 1, p.col - 1})
 		}
 
@@ -41,10 +44,13 @@ func (p *Pawn) GetMoves(pieces [32]ChessPiece) [][2]int {
 		}
 
 		//now checking for takes
-		if GetPieceOnSquare(p.row+1, p.col+1, pieces) != nil {
+		potentialTake := GetPieceOnSquare(p.row+1, p.col+1, pieces)
+		if potentialTake != nil && potentialTake.White() != p.white {
 			moves = append(moves, [2]int{p.row + 1, p.col + 1})
 		}
-		if GetPieceOnSquare(p.row+1, p.col-1, pieces) != nil {
+
+		potentialTake = GetPieceOnSquare(p.row+1, p.col-1, pieces)
+		if potentialTake != nil && potentialTake.White() != p.white {
 			moves = append(moves, [2]int{p.row + 1, p.col - 1})
 		}
 	}
