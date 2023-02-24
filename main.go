@@ -115,7 +115,7 @@ func (g *Game) MoveIsLegal(row int, col int) bool {
 		}
 	} else {
 		//For now, just indicates that this piece has not had moves programmed yet and all moves legal
-		legal = true
+		//legal = true
 	}
 	if legal {
 		g.board.whitesTurn = !g.board.whitesTurn //switch turns

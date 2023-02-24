@@ -51,17 +51,16 @@ func (b *Board) DrawHighlightedTiles(gameImage *ebiten.Image, selectRow int, sel
 
 	// drawing highlighted tiles (available moves in red)
 	if selectIndex >= 0 {
-		if pieces[selectIndex].GetName() == "White pawn" || pieces[selectIndex].GetName() == "Black pawn" {
-			availableMoves := pieces[selectIndex].GetMoves(pieces)
-			if availableMoves != nil {
-				for _, move := range availableMoves {
-					opTile := &ebiten.DrawImageOptions{}
-					opTile.GeoM.Translate(float64(move[1]*TileSize+448), float64(move[0]*TileSize+28))
-					tileImage.Fill(color.RGBA{R: 0xff, G: 0x06, B: 0x03, A: 0xba})
-					gameImage.DrawImage(tileImage, opTile)
-				}
+		availableMoves := pieces[selectIndex].GetMoves(pieces)
+		if availableMoves != nil {
+			for _, move := range availableMoves {
+				opTile := &ebiten.DrawImageOptions{}
+				opTile.GeoM.Translate(float64(move[1]*TileSize+448), float64(move[0]*TileSize+28))
+				tileImage.Fill(color.RGBA{R: 0xff, G: 0x06, B: 0x03, A: 0xba})
+				gameImage.DrawImage(tileImage, opTile)
 			}
 		}
+
 	}
 
 	// Draw hovered tile (in highlighter yellow)

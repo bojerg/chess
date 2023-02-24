@@ -17,40 +17,55 @@ func (p *Pawn) GetMoves(pieces [32]ChessPiece) [][2]int {
 	if p.white {
 		// white pawn on starting position, so could move forward one or two
 		if p.row == 6 {
-			moves = append(moves, [2]int{4, p.col}, [2]int{5, p.col})
+			if GetPieceOnSquare(4, p.col, pieces) == nil {
+				moves = append(moves, [2]int{4, p.col})
+			}
+			if GetPieceOnSquare(5, p.col, pieces) == nil {
+				moves = append(moves, [2]int{5, p.col})
+			}
+
 		} else {
 			// white pawn not on starting position
-			moves = append(moves, [2]int{p.row - 1, p.col})
+			if GetPieceOnSquare(p.row-1, p.col, pieces) == nil {
+				moves = append(moves, [2]int{p.row - 1, p.col})
+			}
 		}
 
 		//now checking for takes
-		potentialTake := GetPieceOnSquare(p.row-1, p.col+1, pieces)
-		if potentialTake != nil && potentialTake.White() != p.white {
+		otherPiece := GetPieceOnSquare(p.row-1, p.col+1, pieces)
+		if otherPiece != nil && otherPiece.White() != p.white {
 			moves = append(moves, [2]int{p.row - 1, p.col + 1})
 		}
 
-		potentialTake = GetPieceOnSquare(p.row-1, p.col-1, pieces)
-		if potentialTake != nil && potentialTake.White() != p.white {
+		otherPiece = GetPieceOnSquare(p.row-1, p.col-1, pieces)
+		if otherPiece != nil && otherPiece.White() != p.white {
 			moves = append(moves, [2]int{p.row - 1, p.col - 1})
 		}
 
 	} else {
 		// black pawn on starting position, so could move forward one or two
 		if p.row == 1 {
-			moves = append(moves, [2]int{3, p.col}, [2]int{2, p.col})
+			if GetPieceOnSquare(3, p.col, pieces) == nil {
+				moves = append(moves, [2]int{3, p.col})
+			}
+			if GetPieceOnSquare(2, p.col, pieces) == nil {
+				moves = append(moves, [2]int{2, p.col})
+			}
 		} else {
 			// black pawn not on starting position
-			moves = append(moves, [2]int{p.row + 1, p.col})
+			if GetPieceOnSquare(p.row+1, p.col, pieces) == nil {
+				moves = append(moves, [2]int{p.row + 1, p.col})
+			}
 		}
 
 		//now checking for takes
-		potentialTake := GetPieceOnSquare(p.row+1, p.col+1, pieces)
-		if potentialTake != nil && potentialTake.White() != p.white {
+		otherPiece := GetPieceOnSquare(p.row+1, p.col+1, pieces)
+		if otherPiece != nil && otherPiece.White() != p.white {
 			moves = append(moves, [2]int{p.row + 1, p.col + 1})
 		}
 
-		potentialTake = GetPieceOnSquare(p.row+1, p.col-1, pieces)
-		if potentialTake != nil && potentialTake.White() != p.white {
+		otherPiece = GetPieceOnSquare(p.row+1, p.col-1, pieces)
+		if otherPiece != nil && otherPiece.White() != p.white {
 			moves = append(moves, [2]int{p.row + 1, p.col - 1})
 		}
 	}

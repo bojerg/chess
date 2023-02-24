@@ -10,8 +10,109 @@ type Bishop struct {
 // in an array with a length of two-- Row and Col.
 // TODO everything
 func (p *Bishop) GetMoves(pieces [32]ChessPiece) [][2]int {
-	//moves := make([][2]int, 2)
-	return nil
+	moves := make([][2]int, 0)
+
+	//The following are for loops in the diagonals
+	col := p.col
+	row := p.row
+	for {
+
+		col++
+		row++
+		if col > 7 || row > 7 {
+			break
+		}
+
+		otherPiece := GetPieceOnSquare(row, col, pieces)
+		if otherPiece == nil {
+			//No piece encountered, valid move
+			moves = append(moves, [2]int{row, col})
+		} else {
+			//Piece encountered... is it on the other team?
+			if otherPiece.White() != p.white {
+				moves = append(moves, [2]int{row, col})
+			}
+			// Can't go further in this loop / can't go further this direction on the board
+			break
+		}
+	}
+
+	col = p.col
+	row = p.row
+	for {
+
+		col++
+		row--
+		if col > 7 || row < 0 {
+			break
+		}
+
+		otherPiece := GetPieceOnSquare(row, col, pieces)
+		if otherPiece == nil {
+			//No piece encountered, valid move
+			moves = append(moves, [2]int{row, col})
+		} else {
+			//Piece encountered... is it on the other team?
+			if otherPiece.White() != p.white {
+				moves = append(moves, [2]int{row, col})
+			}
+			// Can't go further in this loop / can't go further this direction on the board
+			break
+		}
+
+	}
+
+	col = p.col
+	row = p.row
+	for {
+
+		col--
+		row--
+		if col < 0 || row < 0 {
+			break
+		}
+
+		otherPiece := GetPieceOnSquare(row, col, pieces)
+		if otherPiece == nil {
+			//No piece encountered, valid move
+			moves = append(moves, [2]int{row, col})
+		} else {
+			//Piece encountered... is it on the other team?
+			if otherPiece.White() != p.white {
+				moves = append(moves, [2]int{row, col})
+			}
+			// Can't go further in this loop / can't go further this direction on the board
+			break
+		}
+
+	}
+
+	col = p.col
+	row = p.row
+	for {
+
+		col--
+		row++
+		if col < 0 || row > 7 {
+			break
+		}
+
+		otherPiece := GetPieceOnSquare(row, col, pieces)
+		if otherPiece == nil {
+			//No piece encountered, valid move
+			moves = append(moves, [2]int{row, col})
+		} else {
+			//Piece encountered... is it on the other team?
+			if otherPiece.White() != p.white {
+				moves = append(moves, [2]int{row, col})
+			}
+			// Can't go further in this loop / can't go further this direction on the board
+			break
+		}
+
+	}
+
+	return moves
 }
 
 // GetName primarily intended for debugging

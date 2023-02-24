@@ -10,8 +10,69 @@ type Rook struct {
 // in an array with a length of two-- Row and Col.
 // TODO everything
 func (p *Rook) GetMoves(pieces [32]ChessPiece) [][2]int {
-	//moves := make([][2]int, 2)
-	return nil
+	moves := make([][2]int, 0)
+
+	for col := p.col - 1; col >= 0; col-- {
+		otherPiece := GetPieceOnSquare(p.row, col, pieces)
+		if otherPiece == nil {
+			//No piece encountered, valid move
+			moves = append(moves, [2]int{p.row, col})
+		} else {
+			//Piece encountered... is it on the other team?
+			if otherPiece.White() != p.white {
+				moves = append(moves, [2]int{p.row, col})
+			}
+			// Can't go further in this loop / can't go further this direction on the board
+			break
+		}
+	}
+
+	for col := p.col + 1; col <= 7; col++ {
+		otherPiece := GetPieceOnSquare(p.row, col, pieces)
+		if otherPiece == nil {
+			//No piece encountered, valid move
+			moves = append(moves, [2]int{p.row, col})
+		} else {
+			//Piece encountered... is it on the other team?
+			if otherPiece.White() != p.white {
+				moves = append(moves, [2]int{p.row, col})
+			}
+			// Can't go further in this loop / can't go further this direction on the board
+			break
+		}
+	}
+
+	for row := p.row - 1; row >= 0; row-- {
+		otherPiece := GetPieceOnSquare(row, p.col, pieces)
+		if otherPiece == nil {
+			//No piece encountered, valid move
+			moves = append(moves, [2]int{row, p.col})
+		} else {
+			//Piece encountered... is it on the other team?
+			if otherPiece.White() != p.white {
+				moves = append(moves, [2]int{row, p.col})
+			}
+			// Can't go further in this loop / can't go further this direction on the board
+			break
+		}
+	}
+
+	for row := p.row + 1; row <= 7; row++ {
+		otherPiece := GetPieceOnSquare(row, p.col, pieces)
+		if otherPiece == nil {
+			//No piece encountered, valid move
+			moves = append(moves, [2]int{row, p.col})
+		} else {
+			//Piece encountered... is it on the other team?
+			if otherPiece.White() != p.white {
+				moves = append(moves, [2]int{row, p.col})
+			}
+			// Can't go further in this loop / can't go further this direction on the board
+			break
+		}
+	}
+
+	return moves
 }
 
 // GetName primarily intended for debugging

@@ -10,7 +10,7 @@ type King struct {
 // in an array with a length of two-- Row and Col.
 // TODO everything
 func (p *King) GetMoves(pieces [32]ChessPiece) [][2]int {
-	//moves := make([][2]int, 2)
+	//moves := make([][2]int, 0)
 	return nil
 }
 

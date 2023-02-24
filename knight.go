@@ -9,8 +9,9 @@ type Knight struct {
 // GetMoves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
 // in an array with a length of two-- Row and Col.
 // TODO everything
+// TODO castle (ahhhhhhhhhhhhhhhhhhh)
 func (p *Knight) GetMoves(pieces [32]ChessPiece) [][2]int {
-	//moves := make([][2]int, 2)
+	//moves := make([][2]int, 0)
 	return nil
 }
 
