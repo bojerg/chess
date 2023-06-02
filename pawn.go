@@ -16,67 +16,71 @@ func (p *Pawn) GetMoves(pieces [32]ChessPiece) [][2]int {
 	// TODO add en passant, or however you spell that move
 	if p.white {
 		// white pawn on starting position, so could move forward one or two
+		// not checking bounds because there's no way to move out of bounds with hardcoded moves (I hope!)
 		if p.row == 6 {
-			if GetPieceOnSquare(4, p.col, pieces) == nil {
-				moves = append(moves, [2]int{4, p.col})
-			}
 			if GetPieceOnSquare(5, p.col, pieces) == nil {
 				moves = append(moves, [2]int{5, p.col})
-			}
 
+				//nested check to ensure we don't jump over a piece
+				if GetPieceOnSquare(4, p.col, pieces) == nil {
+					moves = append(moves, [2]int{4, p.col})
+				}
+			}
 		} else {
 			// white pawn not on starting position
-			if GetPieceOnSquare(p.row-1, p.col, pieces) == nil {
+			// now we check bounds
+			if GetPieceOnSquare(p.row-1, p.col, pieces) == nil && IsInBounds(p.row-1, p.col) {
 				moves = append(moves, [2]int{p.row - 1, p.col})
 			}
 		}
 
 		//now checking for takes
-		otherPiece := GetPieceOnSquare(p.row-1, p.col+1, pieces)
-		if otherPiece != nil && otherPiece.White() != p.white {
-			moves = append(moves, [2]int{p.row - 1, p.col + 1})
+		if IsInBounds(p.row-1, p.col+1) {
+			otherPiece1 := GetPieceOnSquare(p.row-1, p.col+1, pieces)
+			if otherPiece1 != nil && otherPiece1.White() != p.white {
+				moves = append(moves, [2]int{p.row - 1, p.col + 1})
+			}
 		}
 
-		otherPiece = GetPieceOnSquare(p.row-1, p.col-1, pieces)
-		if otherPiece != nil && otherPiece.White() != p.white {
-			moves = append(moves, [2]int{p.row - 1, p.col - 1})
+		if IsInBounds(p.row-1, p.col-1) {
+			otherPiece2 := GetPieceOnSquare(p.row-1, p.col-1, pieces)
+			if otherPiece2 != nil && otherPiece2.White() != p.white {
+				moves = append(moves, [2]int{p.row - 1, p.col - 1})
+			}
 		}
 
 	} else {
 		// black pawn on starting position, so could move forward one or two
 		if p.row == 1 {
-			if GetPieceOnSquare(3, p.col, pieces) == nil {
-				moves = append(moves, [2]int{3, p.col})
-			}
 			if GetPieceOnSquare(2, p.col, pieces) == nil {
 				moves = append(moves, [2]int{2, p.col})
+
+				if GetPieceOnSquare(3, p.col, pieces) == nil {
+					moves = append(moves, [2]int{3, p.col})
+				}
 			}
 		} else {
 			// black pawn not on starting position
-			if GetPieceOnSquare(p.row+1, p.col, pieces) == nil {
+			if GetPieceOnSquare(p.row+1, p.col, pieces) == nil && IsInBounds(p.row+1, p.col) {
 				moves = append(moves, [2]int{p.row + 1, p.col})
 			}
 		}
 
 		//now checking for takes
-		otherPiece := GetPieceOnSquare(p.row+1, p.col+1, pieces)
-		if otherPiece != nil && otherPiece.White() != p.white {
-			moves = append(moves, [2]int{p.row + 1, p.col + 1})
+		if IsInBounds(p.row+1, p.col+1) {
+			otherPiece1 := GetPieceOnSquare(p.row+1, p.col+1, pieces)
+			if otherPiece1 != nil && otherPiece1.White() != p.white {
+				moves = append(moves, [2]int{p.row + 1, p.col + 1})
+			}
 		}
 
-		otherPiece = GetPieceOnSquare(p.row+1, p.col-1, pieces)
-		if otherPiece != nil && otherPiece.White() != p.white {
-			moves = append(moves, [2]int{p.row + 1, p.col - 1})
+		if IsInBounds(p.row+1, p.col-1) {
+			otherPiece2 := GetPieceOnSquare(p.row+1, p.col-1, pieces)
+			if otherPiece2 != nil && otherPiece2.White() != p.white {
+				moves = append(moves, [2]int{p.row + 1, p.col - 1})
+			}
 		}
-	}
 
-	//should loop through and remove invalid indices (outside bounds of the board)
-	for i, move := range moves {
-		if move[0] > 8 || move[0] < 0 || move[1] > 8 || move[1] < 0 {
-			//https://www.geeksforgeeks.org/delete-elements-in-a-slice-in-golang/
-			//removing the move from the slice
-			moves = append(moves[:i], moves[i+1:]...)
-		}
 	}
 
 	return moves
