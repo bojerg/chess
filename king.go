@@ -8,10 +8,31 @@ type King struct {
 
 // GetMoves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
 // in an array with a length of two-- Row and Col.
-// TODO everything
+// TODO castling
 func (p *King) GetMoves(pieces [32]ChessPiece) [][2]int {
-	//moves := make([][2]int, 0)
-	return nil
+	moves := make([][2]int, 0)
+
+	possibleMoves := [8][2]int{
+		{p.row, p.col + 1},
+		{p.row, p.col - 1},
+		{p.row + 1, p.col},
+		{p.row - 1, p.col},
+		{p.row - 1, p.col + 1},
+		{p.row - 1, p.col - 1},
+		{p.row + 1, p.col + 1},
+		{p.row + 1, p.col - 1},
+	}
+
+	for _, move := range possibleMoves {
+		if IsInBounds(move[0], move[1]) {
+			otherPiece := GetPieceOnSquare(move[0], move[1], pieces)
+			if otherPiece == nil || otherPiece.White() != p.white {
+				moves = append(moves, [2]int{move[0], move[1]})
+			}
+		}
+	}
+
+	return moves
 }
 
 // GetName primarily intended for debugging

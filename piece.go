@@ -46,6 +46,14 @@ func GetImage(filepathStr string) *ebiten.Image {
 
 }
 
+func IsInBounds(row int, col int) bool {
+	if row <= 7 && row >= 0 && col <= 7 && col >= 0 {
+		return true
+	}
+
+	return false
+}
+
 // GetPieceOnSquare checks list of ChessPiece against provided row and col positions. If a match
 // is found, a copy of that piece is returned. Otherwise, returns nil.
 func GetPieceOnSquare(row int, col int, pieces [32]ChessPiece) ChessPiece {
