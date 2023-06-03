@@ -35,6 +35,10 @@ func (p *King) GetMoves(pieces [32]ChessPiece) [][2]int {
 	return moves
 }
 
+func (p *King) IsKing() bool {
+	return true
+}
+
 // GetName primarily intended for debugging
 func (p *King) GetName() string {
 	if p.white {

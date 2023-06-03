@@ -8,10 +8,13 @@ import (
 // Board
 // A collection of helper functions to render the images displayed every frame
 // whitesTurn... true if it's white's turn, duh!
+// inCheck signifies the player who is up to move is in check. I don't think there's any way both players could be
+// in check simultaneously
 // scheduleDraw bool is a sentinel value to indicate that the piece locations have changed
 // and the pieceImage should be redrawn
 type Board struct {
 	whitesTurn   bool
+	inCheck      bool
 	scheduleDraw bool
 }
 
@@ -75,6 +78,20 @@ func (b *Board) DrawHighlightedTiles(gameImage *ebiten.Image, selectRow int, sel
 			}
 		}
 	}
+
+	//highlight a king in check (purple?)
+	if b.inCheck {
+		for _, piece := range pieces {
+			if piece.IsKing() && piece.White() == b.whitesTurn {
+				opTile := &ebiten.DrawImageOptions{}
+				opTile.GeoM.Translate(float64(piece.GetCol()*TileSize+448), float64(piece.GetRow()*TileSize+28))
+				tileImage.Fill(color.RGBA{R: 0xbf, G: 0x00, B: 0xe6, A: 0xff})
+				gameImage.DrawImage(tileImage, opTile)
+				break
+			}
+		}
+	}
+
 }
 
 func (b *Board) DrawBoard(boardImage *ebiten.Image) {
