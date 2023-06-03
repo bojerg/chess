@@ -25,6 +25,7 @@ type ChessPiece interface {
 	GetRow() int
 	SetRow(int)
 	White() bool
+	IsKing() bool
 	GetImage() *ebiten.Image
 	GetMoves([32]ChessPiece) [][2]int
 	GetName() string

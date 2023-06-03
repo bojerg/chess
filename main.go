@@ -77,15 +77,14 @@ func (g *Game) Update() error {
 			g.selected[1] = float64(y)/1.5 - 30
 		}
 	} else { // MouseButtonLeft is not pressed
+
 		//If we do have a piece selected
 		if g.selectedPiece != -1 {
+
 			// piece is asking to be let go of at it the current mouse position
 			// Verify the move if the piece is being set down on a different square than it started on
 			if g.pieces[g.selectedPiece].GetCol() != g.selectedCol || g.pieces[g.selectedPiece].GetRow() != g.selectedRow {
-				if g.MoveIsLegal(g.selectedRow, g.selectedCol) {
-					g.pieces[g.selectedPiece].SetRow(g.selectedRow)
-					g.pieces[g.selectedPiece].SetCol(g.selectedCol)
-				}
+				g.MakeMoveIfLegal(g.selectedRow, g.selectedCol)
 			}
 
 			//Either way, we need to update the board image and clear selectedPiece index
@@ -97,40 +96,99 @@ func (g *Game) Update() error {
 	return nil
 }
 
-// MoveIsLegal handles three things: Checking if a move is legal, removing a taken piece from the
+// MakeMoveIfLegal handles three things: Checking if a move is legal, removing a taken piece from the
 // game if the move was legal, and handling the switching of turns. It returns true if the move was
 // legal and executable, or false if it could not be completed.
-func (g *Game) MoveIsLegal(row int, col int) bool {
+func (g *Game) MakeMoveIfLegal(row int, col int) {
 	//check if move is legal
-	//just checking through legal moves to verify this move is present
-	legalMoves := g.pieces[g.selectedPiece].GetMoves(g.pieces)
+	//first, make sure the tile it's being set on is possible by comparing it to the Piece's GetMoves function
+	//second, don't allow the player to put themselves into check, and see if they are putting their opponent in check
+	possibleMoves := g.pieces[g.selectedPiece].GetMoves(g.pieces)
 	legal := false
 
-	if legalMoves != nil {
-		for _, move := range legalMoves {
-			if move[0] == row && move[1] == col {
-				legal = true
-				break
-			}
+	for _, move := range possibleMoves {
+		if move[0] == row && move[1] == col {
+			//we found the move in list of possible moves
+			legal = true
+			break
 		}
-	} else {
-		//For now, just indicates that this piece has not had moves programmed yet and all moves legal
-		//legal = true
 	}
+
 	if legal {
-		g.board.whitesTurn = !g.board.whitesTurn //switch turns
-		// If there's a piece on the square, we need to take it away!
+		//we should save the old piece position then set the new position and make sure the move is still legal
+		startingPos := [2]int{g.pieces[g.selectedPiece].GetRow(), g.pieces[g.selectedPiece].GetCol()}
+		g.pieces[g.selectedPiece].SetRow(g.selectedRow)
+		g.pieces[g.selectedPiece].SetCol(g.selectedCol)
+
+		// If there's a piece on the square we moved to, we need to take it away!
+		var capturedPiece *ChessPiece
+		capturedOldCol := -1
 		for i, piece := range g.pieces {
 			if piece.GetRow() == row && piece.GetCol() == col {
 				if i != g.selectedPiece {
+					capturedOldCol = piece.GetCol()
 					piece.SetCol(-1) // Col of -1 is de facto notation for piece taken
+					capturedPiece = &piece
 					break
 				}
 			}
 		}
-	}
+		
+		// for each piece on opposing team, does it have possible move to check this player after the move?
+		// reminder, a piece with col of -1 has been taken
+		for _, piece := range g.pieces {
+			if piece.White() != g.board.whitesTurn && piece.GetCol() != -1 {
 
-	return legal
+				//check possible moves for each valid piece and see if any would check the king
+				for _, move := range piece.GetMoves(g.pieces) {
+					otherPiece := GetPieceOnSquare(move[0], move[1], g.pieces)
+					if otherPiece != nil && otherPiece.White() == g.board.whitesTurn && otherPiece.IsKing() == true {
+						legal = false
+						break
+					}
+				}
+			}
+			// idk but it's probably slightly faster to break the loop as soon as move is shown to be illegal
+			// honestly it just bothers me to break the inner loop but continue on the outer loop for no reason
+			if !legal {
+				break
+			}
+		}
+
+		//using same variable for the condition, yuck! Not going to change it tho :P
+		//look a few lines up if this is confusing
+		if !legal {
+			//put the piece back
+			g.pieces[g.selectedPiece].SetRow(startingPos[0])
+			g.pieces[g.selectedPiece].SetCol(startingPos[1])
+
+			//put the captured piece back too, if it was taken
+			if capturedPiece != nil {
+				(*capturedPiece).SetCol(capturedOldCol)
+			}
+
+		} else {
+			g.board.inCheck = false
+			g.board.whitesTurn = !g.board.whitesTurn //switch turns
+
+			//now checking if this move puts the opponent in check
+			//note we switched turns in the logic just before this loop
+			for _, piece := range g.pieces {
+				if piece.White() != g.board.whitesTurn && piece.GetCol() != -1 {
+
+					//check possible moves for each valid piece and see if any would check the king
+					for _, move := range piece.GetMoves(g.pieces) {
+						otherPiece := GetPieceOnSquare(move[0], move[1], g.pieces)
+						if otherPiece != nil && otherPiece.White() == g.board.whitesTurn && otherPiece.IsKing() == true {
+							g.board.inCheck = true
+							break
+						}
+					}
+				}
+			}
+
+		}
+	}
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
