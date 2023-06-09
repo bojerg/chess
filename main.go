@@ -17,18 +17,23 @@ import (
 // selected is for the x, y values of a piece in motion
 // selectedPiece is the index of the selected piece... -1 means none
 // selectedCol, selectedRow is the hovered over/selected board square
+// checkmateNotChecked is a sentinel boolean to skip checkmate checks on update cycles if
+// the current turn has already been checked. It is set to true every new turn.
 
 type Game struct {
-	gameImage     *ebiten.Image
-	board         *Board
-	boardImage    *ebiten.Image
-	movingImage   *ebiten.Image
-	pieceImage    *ebiten.Image
-	pieces        [32]ChessPiece
-	selected      [2]float64
-	selectedPiece int
-	selectedCol   int
-	selectedRow   int
+	gameImage           *ebiten.Image
+	board               *Board
+	boardImage          *ebiten.Image
+	movingImage         *ebiten.Image
+	pieceImage          *ebiten.Image
+	pieces              [32]ChessPiece
+	selected            [2]float64
+	selectedPiece       int
+	selectedCol         int
+	selectedRow         int
+	checkmateNotChecked bool
+	gameOver            bool
+	gameOverMsg         string
 }
 
 const (
@@ -47,10 +52,23 @@ func (g *Game) Update() error {
 	g.selectedCol = int(math.Floor(math.Min(math.Max(float64((x-448)/128), 0), 7)))
 	g.selectedRow = int(math.Floor(math.Min(math.Max(float64((y-28)/128), 0), 7)))
 
+	// invert selected row and col when the board is rotated
+	if !g.board.whitesTurn {
+		g.selectedCol = (g.selectedCol - 7) * -1
+		g.selectedRow = (g.selectedRow - 7) * -1
+	}
+
 	// No way to exit fullscreen without this for now
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 		ebiten.SetFullscreen(false)
 	}
+
+	// Checks for a checkmate if in check (only once per turn)
+	if g.board.inCheck && g.checkmateNotChecked {
+		//TODO: check for checkmate
+	}
+
+	//TODO: Stalemate
 
 	// left click hold and drag
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
@@ -97,8 +115,7 @@ func (g *Game) Update() error {
 }
 
 // MakeMoveIfLegal handles three things: Checking if a move is legal, removing a taken piece from the
-// game if the move was legal, and handling the switching of turns. It returns true if the move was
-// legal and executable, or false if it could not be completed.
+// game if the move was legal, and handling the switching of turns.
 func (g *Game) MakeMoveIfLegal(row int, col int) {
 	//check if move is legal
 	//first, make sure the tile it's being set on is possible by comparing it to the Piece's GetMoves function
@@ -133,7 +150,7 @@ func (g *Game) MakeMoveIfLegal(row int, col int) {
 				}
 			}
 		}
-		
+
 		// for each piece on opposing team, does it have possible move to check this player after the move?
 		// reminder, a piece with col of -1 has been taken
 		for _, piece := range g.pieces {
@@ -169,6 +186,7 @@ func (g *Game) MakeMoveIfLegal(row int, col int) {
 
 		} else {
 			g.board.inCheck = false
+			g.checkmateNotChecked = true
 			g.board.whitesTurn = !g.board.whitesTurn //switch turns
 
 			//now checking if this move puts the opponent in check
@@ -191,6 +209,10 @@ func (g *Game) MakeMoveIfLegal(row int, col int) {
 	}
 }
 
+func (g *Game) IsCheckmate() {
+	g.gameOver = true
+}
+
 func (g *Game) Draw(screen *ebiten.Image) {
 	g.board.DrawHighlightedTiles(g.gameImage, g.selectedRow, g.selectedCol, g.selectedPiece, g.pieces)
 
@@ -207,17 +229,40 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.board.scheduleDraw = false
 	}
 
-	op := &ebiten.DrawImageOptions{}
+	//Draw operation settings & execution
 	sw, sh := screen.Size()
 	bw, bh := g.boardImage.Size()
-	x := (sw - bw) / 2
-	y := (sh - bh) / 2
-	op.GeoM.Translate(float64(x), float64(y))
 
-	screen.DrawImage(g.boardImage, op)
-	screen.DrawImage(g.gameImage, op)
-	screen.DrawImage(g.pieceImage, op)
-	screen.DrawImage(g.movingImage, op)
+	uiOp := &ebiten.DrawImageOptions{}
+	uiOpX := (sw - bw) / 2
+	uiOpY := (sh - bh) / 2
+
+	boardOp := &ebiten.DrawImageOptions{}
+	boardOpX := uiOpX
+	boardOpY := uiOpY
+	boardOpRotate := 0.0
+
+	//flipping the board
+	if !g.board.whitesTurn {
+		boardOpRotate = math.Pi
+		//bring the board back into view after rotating
+		boardOpX += bw
+		boardOpY += bh
+	}
+
+	boardOp.GeoM.Rotate(boardOpRotate)
+	boardOp.GeoM.Translate(float64(boardOpX), float64(boardOpY))
+
+	screen.DrawImage(g.boardImage, boardOp)
+	screen.DrawImage(g.gameImage, boardOp)
+	screen.DrawImage(g.pieceImage, boardOp)
+
+	if g.gameOver {
+		//TODO: Add font for game over message
+		//text.Draw(g.pieceImage, g.gameOverMsg, )
+	} else {
+		screen.DrawImage(g.movingImage, uiOp)
+	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -245,9 +290,13 @@ func (g *Game) InitBoard() {
 	g.pieceImage = ebiten.NewImage(Width, Height)
 	g.movingImage = ebiten.NewImage(Width, Height)
 	g.InitPieces()
+	g.checkmateNotChecked = true
+	g.gameOver = false
+	g.gameOverMsg = ""
+	g.board.inCheck = false
+	g.board.whitesTurn = true
 	g.board.DrawBoard(g.boardImage)
 	g.board.DrawStaticPieces(g.pieceImage, g.pieces, g.selectedPiece)
-	g.board.whitesTurn = true
 	g.board.scheduleDraw = false
 }
 
