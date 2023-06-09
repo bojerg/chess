@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"image/color"
+	"math"
 )
 
 // Board
@@ -13,20 +14,32 @@ import (
 // scheduleDraw bool is a sentinel value to indicate that the piece locations have changed
 // and the pieceImage should be redrawn
 type Board struct {
-	whitesTurn   bool
-	inCheck      bool
+	whitesTurn bool
+	inCheck    bool
+
 	scheduleDraw bool
 }
 
 func (b *Board) DrawStaticPieces(pieceImage *ebiten.Image, pieces [32]ChessPiece, selectedPiece int) {
 	pieceImage.Clear()
 
+	xOffset := 465.0
+	yOffset := 42.0
+	rotate := 0.0
+
+	if !b.whitesTurn {
+		rotate = math.Pi
+		xOffset += TileSize - 34
+		yOffset += TileSize - 28
+	}
+
 	for i, piece := range pieces {
 		// Don't draw selected (moving) piece, or any pieces with id of 6 (taken)
 		if i != selectedPiece && piece.GetCol() != -1 {
-			tx := float64(pieces[i].GetCol()*TileSize) + 465
-			ty := float64(pieces[i].GetRow()*TileSize) + 42
+			tx := float64(pieces[i].GetCol()*TileSize) + xOffset
+			ty := float64(pieces[i].GetRow()*TileSize) + yOffset
 			opPiece := &ebiten.DrawImageOptions{}
+			opPiece.GeoM.Rotate(rotate)
 			opPiece.GeoM.Scale(1.5, 1.5) //essentially W x H = 90 x 90
 			opPiece.GeoM.Translate(tx, ty)
 			pieceImage.DrawImage(pieces[i].GetImage(), opPiece)
@@ -35,6 +48,7 @@ func (b *Board) DrawStaticPieces(pieceImage *ebiten.Image, pieces [32]ChessPiece
 }
 
 func (b *Board) DrawMovingPiece(movingImage *ebiten.Image, pieces [32]ChessPiece, selected [2]float64, selectedPiece int) {
+
 	for i, _ := range pieces {
 		if i == selectedPiece {
 			tx := selected[0] * 1.5
@@ -79,7 +93,7 @@ func (b *Board) DrawHighlightedTiles(gameImage *ebiten.Image, selectRow int, sel
 		}
 	}
 
-	//highlight a king in check (purple?)
+	//highlight a king in check (purple)
 	if b.inCheck {
 		for _, piece := range pieces {
 			if piece.IsKing() && piece.White() == b.whitesTurn {
