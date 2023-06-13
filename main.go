@@ -2,7 +2,13 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
+	"github.com/hajimehoshi/ebiten/v2/text"
 	_ "github.com/silbinarywolf/preferdiscretegpu" // Fix for discrete GPUs in windows
+	"golang.org/x/image/colornames"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
+	"image/color"
 	"log"
 	"math"
 )
@@ -23,9 +29,11 @@ import (
 type Game struct {
 	gameImage           *ebiten.Image
 	board               *Board
+	uiFont              font.Face
 	boardImage          *ebiten.Image
 	movingImage         *ebiten.Image
 	pieceImage          *ebiten.Image
+	uiImage             *ebiten.Image
 	pieces              [32]ChessPiece
 	selected            [2]float64
 	selectedPiece       int
@@ -40,6 +48,7 @@ const (
 	Width    = 1920
 	Height   = 1080
 	TileSize = 128
+	FontDPI  = 72
 )
 
 // Update
@@ -65,7 +74,9 @@ func (g *Game) Update() error {
 
 	// Checks for a checkmate if in check (only once per turn)
 	if g.board.inCheck && g.checkmateNotChecked {
-		//TODO: check for checkmate
+		g.checkmateNotChecked = false
+		//function evaluates if checkmate and flags for the game to end if it is
+		g.IsCheckmate()
 	}
 
 	//TODO: Stalemate
@@ -210,11 +221,88 @@ func (g *Game) MakeMoveIfLegal(row int, col int) {
 }
 
 func (g *Game) IsCheckmate() {
-	g.gameOver = true
+	checkmate := true
+	// Try every possible move and see if still in check
+	for _, piece := range g.pieces {
+		if piece.White() == g.board.whitesTurn && piece.GetCol() != -1 {
+
+			//save the original position so we can put the piece back after checking moves
+			startingPos := [2]int{piece.GetRow(), piece.GetCol()}
+
+			//capturedPiece is a placeholder to save pieces that are taken by potential moves
+			//we should put it back after running our check
+			var capturedPiece *ChessPiece
+			capturedOldCol := -1
+
+			for _, move := range piece.GetMoves(g.pieces) {
+
+				//here we simulate each move and see if it gets them out of check
+				//if it does, we put the pieces back and exit the loop, indicating it's not checkmate
+				//otherwise, we'll put the pieces back and try the next move
+
+				//simulate move
+				otherPiece := GetPieceOnSquare(move[0], move[1], g.pieces)
+				if otherPiece != nil && otherPiece.White() != g.board.whitesTurn {
+					capturedOldCol = otherPiece.GetCol()
+					otherPiece.SetCol(-1)
+					capturedPiece = &otherPiece
+				}
+				piece.SetRow(move[0])
+				piece.SetCol(move[1])
+
+				//check if this move still leaves them in check
+				thisMoveInCheck := false
+				for _, nestedPiece := range g.pieces {
+					if nestedPiece.White() != g.board.whitesTurn && nestedPiece.GetCol() != -1 {
+						//check possible moves for each valid piece and see if any would check the king
+						for _, nestedMove := range nestedPiece.GetMoves(g.pieces) {
+							otherOtherPiece := GetPieceOnSquare(nestedMove[0], nestedMove[1], g.pieces)
+							if otherOtherPiece != nil && otherOtherPiece.White() == g.board.whitesTurn && otherOtherPiece.IsKing() == true {
+								thisMoveInCheck = true
+								break
+							}
+						}
+						//break out of the upper loop too if check was found for this move
+						if thisMoveInCheck {
+							break
+						}
+					}
+				}
+
+				//put our pieces back
+				piece.SetRow(startingPos[0])
+				piece.SetCol(startingPos[1])
+
+				if capturedPiece != nil {
+					(*capturedPiece).SetCol(capturedOldCol)
+				}
+
+				//if true, we found a move that gets the player out of check
+				if !thisMoveInCheck {
+					checkmate = false
+					break
+				}
+			}
+		}
+		if !checkmate {
+			break
+		}
+	}
+	if checkmate {
+		g.gameOver = true
+		g.gameOverMsg = "Checkmate, "
+		if g.board.whitesTurn {
+			g.gameOverMsg += "Black wins!"
+		} else {
+			g.gameOverMsg += "White wins!"
+		}
+	}
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+
 	g.board.DrawHighlightedTiles(g.gameImage, g.selectedRow, g.selectedCol, g.selectedPiece, g.pieces)
+	g.board.DrawUI(g.uiImage, g.gameOver)
 
 	// no moving pieces
 	g.movingImage.Clear()
@@ -253,16 +341,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	boardOp.GeoM.Rotate(boardOpRotate)
 	boardOp.GeoM.Translate(float64(boardOpX), float64(boardOpY))
 
+	screen.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
 	screen.DrawImage(g.boardImage, boardOp)
 	screen.DrawImage(g.gameImage, boardOp)
 	screen.DrawImage(g.pieceImage, boardOp)
+	screen.DrawImage(g.uiImage, uiOp)
+	screen.DrawImage(g.movingImage, uiOp)
 
 	if g.gameOver {
-		//TODO: Add font for game over message
-		//text.Draw(g.pieceImage, g.gameOverMsg, )
-	} else {
-		screen.DrawImage(g.movingImage, uiOp)
+		text.Draw(screen, g.gameOverMsg, g.uiFont, (sw/2)-len(g.gameOverMsg)*12, sh/2+12, colornames.Darkred)
 	}
+
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -272,37 +361,24 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 func main() {
 	game := &Game{}
 	game.InitBoard()
-	ebiten.SetWindowSize(Width/2, Height/2)
+	ebiten.SetWindowSize(Width, Height)
 	ebiten.SetWindowTitle("chess")
 	ebiten.SetFullscreen(true)
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// InitBoard
-// The "Board" struct currently provides only helper functions which are drawn over the board's spaces. The board
-// image which is seen on screen is rendered in this function, after assigning a few variables.
 func (g *Game) InitBoard() {
+
 	g.board = &Board{}
 	g.boardImage = ebiten.NewImage(Width, Height)
 	g.gameImage = ebiten.NewImage(Width, Height)
 	g.pieceImage = ebiten.NewImage(Width, Height)
 	g.movingImage = ebiten.NewImage(Width, Height)
-	g.InitPieces()
-	g.checkmateNotChecked = true
-	g.gameOver = false
-	g.gameOverMsg = ""
-	g.board.inCheck = false
-	g.board.whitesTurn = true
-	g.board.DrawBoard(g.boardImage)
-	g.board.DrawStaticPieces(g.pieceImage, g.pieces, g.selectedPiece)
-	g.board.scheduleDraw = false
-}
+	g.uiImage = ebiten.NewImage(Width, Height)
 
-// InitPieces
-// Assign variables with starting positions.
-func (g *Game) InitPieces() {
 	g.selectedPiece = -1
 	g.selected[0] = 0.0
 	g.selected[1] = 0.0
@@ -338,4 +414,30 @@ func (g *Game) InitPieces() {
 	g.pieces[29] = &Bishop{Piece{5, 7, true}}
 	g.pieces[30] = &Knight{Piece{6, 7, true}}
 	g.pieces[31] = &Rook{Piece{7, 7, true}}
+
+	//Attempt to load font
+	tt, err := opentype.Parse(fonts.PressStart2P_ttf)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	g.uiFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
+		Size:    24,
+		DPI:     FontDPI,
+		Hinting: font.HintingVertical,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	g.checkmateNotChecked = true
+	g.gameOver = false
+	g.gameOverMsg = ""
+	g.board.inCheck = false
+	g.board.whitesTurn = true
+
+	g.board.DrawBoard(g.boardImage)
+	g.board.DrawUI(g.uiImage, false)
+	g.board.DrawStaticPieces(g.pieceImage, g.pieces, g.selectedPiece)
+	g.board.scheduleDraw = false
 }

@@ -14,9 +14,8 @@ import (
 // scheduleDraw bool is a sentinel value to indicate that the piece locations have changed
 // and the pieceImage should be redrawn
 type Board struct {
-	whitesTurn bool
-	inCheck    bool
-
+	whitesTurn   bool
+	inCheck      bool
 	scheduleDraw bool
 }
 
@@ -109,7 +108,6 @@ func (b *Board) DrawHighlightedTiles(gameImage *ebiten.Image, selectRow int, sel
 }
 
 func (b *Board) DrawBoard(boardImage *ebiten.Image) {
-	boardImage.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
 	darkColor := color.RGBA{R: 0xbb, G: 0x99, B: 0x55, A: 0xff}
 	lightColor := color.RGBA{R: 0xcb, G: 0xbe, B: 0xb5, A: 0xff}
 
@@ -131,5 +129,12 @@ func (b *Board) DrawBoard(boardImage *ebiten.Image) {
 			}
 
 		}
+	}
+}
+
+func (b *Board) DrawUI(uiImage *ebiten.Image, gameOver bool) {
+
+	if gameOver {
+		// draw centered block for game over message and controls
 	}
 }
