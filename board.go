@@ -4,6 +4,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"image/color"
 	"math"
+	"sort"
 )
 
 // Board
@@ -132,9 +133,66 @@ func (b *Board) DrawBoard(boardImage *ebiten.Image) {
 	}
 }
 
-func (b *Board) DrawUI(uiImage *ebiten.Image, gameOver bool) {
+func (b *Board) DrawUI(uiImage *ebiten.Image, gameOver bool, pieces [32]ChessPiece) {
+	uiImage.Clear()
+
+	//Arranging taken pieces into two structs to sort by value and team for display
+	var whitePieces []ChessPiece
+	var blackPieces []ChessPiece
+	for _, piece := range pieces {
+		if piece.GetCol() == -1 {
+			if piece.White() {
+				whitePieces = append(whitePieces, piece)
+			} else {
+				blackPieces = append(blackPieces, piece)
+			}
+		}
+	}
+
+	sort.Slice(whitePieces, func(p, q int) bool {
+		return GetWeighting(whitePieces[p]) < GetWeighting(whitePieces[q])
+	})
+
+	sort.Slice(blackPieces, func(p, q int) bool {
+		return GetWeighting(blackPieces[p]) < GetWeighting(blackPieces[q])
+	})
+
+	//The following offsets and modifiers help to dynamically grow the column of taken pieces and flip them
+	//as the board is flipped
+	whiteXOffset := 448 + TileSize*8
+	blackXOffset := 384
+	var whiteYOffset float64 = TileSize * 8
+	var blackYOffset float64 = 28
+	whiteGrowth := 16
+	blackGrowth := -16
+
+	if b.whitesTurn {
+		whiteXOffset = blackXOffset
+		whiteYOffset = blackYOffset
+		blackXOffset = 448 + TileSize*8
+		blackYOffset = TileSize * 8
+		whiteGrowth *= -1
+		blackGrowth *= -1
+	}
+
+	for i, p := range whitePieces {
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(0.7, 0.7)
+		op.GeoM.Translate(float64((len(whitePieces)-i)*whiteGrowth+whiteXOffset), whiteYOffset)
+		uiImage.DrawImage(p.GetImage(), op)
+	}
+
+	for i, p := range blackPieces {
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(0.7, 0.7)
+		op.GeoM.Translate(float64((len(blackPieces)-i)*blackGrowth+blackXOffset), blackYOffset)
+		uiImage.DrawImage(p.GetImage(), op)
+	}
 
 	if gameOver {
-		// draw centered block for game over message and controls
+		//centeredBlock := ebiten.NewImage(TileSize*4, TileSize*2)
+		//centeredBlock.Fill(colornames.White)
+		//uiImage.DrawImage(centeredBlock, op)
+
 	}
 }

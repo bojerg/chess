@@ -302,7 +302,7 @@ func (g *Game) IsCheckmate() {
 func (g *Game) Draw(screen *ebiten.Image) {
 
 	g.board.DrawHighlightedTiles(g.gameImage, g.selectedRow, g.selectedCol, g.selectedPiece, g.pieces)
-	g.board.DrawUI(g.uiImage, g.gameOver)
+	g.board.DrawUI(g.uiImage, g.gameOver, g.pieces)
 
 	// no moving pieces
 	g.movingImage.Clear()
@@ -437,7 +437,7 @@ func (g *Game) InitBoard() {
 	g.board.whitesTurn = true
 
 	g.board.DrawBoard(g.boardImage)
-	g.board.DrawUI(g.uiImage, false)
+	g.board.DrawUI(g.uiImage, g.gameOver, g.pieces)
 	g.board.DrawStaticPieces(g.pieceImage, g.pieces, g.selectedPiece)
 	g.board.scheduleDraw = false
 }

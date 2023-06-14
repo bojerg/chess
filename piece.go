@@ -6,6 +6,7 @@ import (
 	_ "image/png" // required for ebitenutil/NewImageFromFile
 	"log"
 	"path/filepath"
+	"strings"
 )
 
 // Piece
@@ -48,11 +49,7 @@ func GetImage(filepathStr string) *ebiten.Image {
 }
 
 func IsInBounds(row int, col int) bool {
-	if row <= 7 && row >= 0 && col <= 7 && col >= 0 {
-		return true
-	}
-
-	return false
+	return row <= 7 && row >= 0 && col <= 7 && col >= 0
 }
 
 // GetPieceOnSquare checks list of ChessPiece against provided row and col positions. If a match
@@ -64,4 +61,24 @@ func GetPieceOnSquare(row int, col int, pieces [32]ChessPiece) ChessPiece {
 		}
 	}
 	return nil
+}
+
+// GetWeighting is implemented so that we can sort pieces by value for UI purposes
+//
+//	Splitting the name after the space to get the piece type  ex. GetName() = "White pawn"
+func GetWeighting(piece ChessPiece) int {
+	switch strings.Split(piece.GetName(), " ")[1] {
+	case "pawn":
+		return 1
+	case "knight":
+		return 2
+	case "bishop":
+		return 3
+	case "rook":
+		return 4
+	case "queen":
+		return 5
+	default:
+		return 0
+	}
 }
