@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text"
 	_ "github.com/silbinarywolf/preferdiscretegpu" // Fix for discrete GPUs in windows
@@ -11,6 +12,7 @@ import (
 	"image/color"
 	"log"
 	"math"
+	"path/filepath"
 	"sort"
 )
 
@@ -30,6 +32,7 @@ type Game struct {
 	movingImage         *ebiten.Image
 	pieceImage          *ebiten.Image
 	uiImage             *ebiten.Image
+	menuBgImage         *ebiten.Image
 	pieces              [32]ChessPiece
 	scheduleDraw        bool
 	whitesTurn          bool
@@ -41,8 +44,14 @@ type Game struct {
 	selectedRow         int
 	gameOver            bool
 	gameOverMsg         string
+	uiFontBig           font.Face
 	uiFont              font.Face
 	uiFontSmall         font.Face
+	btnHoverIndex       int
+	btnPrimary          *ebiten.Image
+	btnPrimaryHover     *ebiten.Image
+	btnInfo             *ebiten.Image
+	btnInfoHover        *ebiten.Image
 }
 
 const (
@@ -55,17 +64,24 @@ const (
 // Draw
 // Draws stuff. Required by ebitengine.
 func (g *Game) Draw(screen *ebiten.Image) {
+
+	screen.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
+
 	switch g.gameType {
 	case -1:
-		//draw main menu
-		if g.scheduleDraw {
-			g.scheduleDraw = false
-			g.DrawMainMenu() //Prints to g.uiImage
-		}
-		screen.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
-		text.Draw(screen, "Chess", g.uiFont, 810, 432, colornames.White)
-		text.Draw(screen, "by bojerg", g.uiFontSmall, 960, 432, colornames.Whitesmoke)
+		g.DrawMainMenu(false) //Prints to g.uiImage and g.menuBgImage
+
+		//Using selectedCol as a counter for infinite scroll of the background
+		g.selectedCol = (g.selectedCol + 1) % 50
+		opMenuBg := &ebiten.DrawImageOptions{}
+		opMenuBg.GeoM.Translate(float64(-g.selectedCol*2), float64(-150+g.selectedCol*2))
+		opMenuBg.GeoM.Scale(1.3, 1.3)
+		screen.DrawImage(g.menuBgImage, opMenuBg)
+
 		screen.DrawImage(g.uiImage, &ebiten.DrawImageOptions{})
+		text.Draw(screen, "Chess", g.uiFontBig, 770, 432, colornames.White)
+		text.Draw(screen, "by bojerg", g.uiFont, 960, 432, colornames.Whitesmoke)
+
 	default:
 		//play the game
 		g.movingImage.Clear()
@@ -77,7 +93,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 
 		// if game logic signals that piece locations have changed, then DrawStaticPieces, and...
-		// stop scheduling draw because we did the update to the static piece image
+		// stop scheduling draw because we updated the static piece image
 		if g.scheduleDraw {
 			g.DrawStaticPieces()
 			g.scheduleDraw = false
@@ -107,7 +123,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		boardOp.GeoM.Rotate(boardOpRotate)
 		boardOp.GeoM.Translate(float64(boardOpX), float64(boardOpY))
 
-		screen.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
 		screen.DrawImage(g.boardImage, boardOp)
 		screen.DrawImage(g.gameImage, boardOp)
 		screen.DrawImage(g.pieceImage, boardOp)
@@ -133,14 +148,25 @@ func (g *Game) Update() error {
 	switch g.gameType {
 	case -1:
 		//at main menu
+
+		//Indicating which controls are hovered over
+		if x > Width/2-90 && x < Width/2+90 && y > Height/2-40 && y < Height/2+40 {
+			g.btnHoverIndex = 1
+		} else {
+			g.btnHoverIndex = -1
+		}
+
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-			g.gameType = 1
-			g.InitPiecesAndImages()
-			break
+			if g.btnHoverIndex != -1 {
+				g.gameType = g.btnHoverIndex
+				g.InitPiecesAndImages()
+				g.btnHoverIndex = -1
+				break
+			}
 		}
 
 	default:
-		//play the game
+		//playing the game
 
 		// Checks for a checkmate if in check (only once per turn)
 		if g.inCheck && g.checkmateNotChecked {
@@ -151,39 +177,62 @@ func (g *Game) Update() error {
 
 		//TODO: Stalemate
 
-		// fancy min max floor math to determine the closest board square to the cursor, even
-		// when the mouse is not over the board
-		g.selectedCol = int(math.Floor(math.Min(math.Max(float64((x-448)/128), 0), 7)))
-		g.selectedRow = int(math.Floor(math.Min(math.Max(float64((y-28)/128), 0), 7)))
+		// XY locations reflect the two buttons drawn on screen
+		// This code block determines what the mouse is interacting with and updates the appropriate parameter
+		if x > TileSize+36 && x < TileSize+216 && y > TileSize*2.5 && y < TileSize*2.5+80 {
+			g.btnHoverIndex = 1
+		} else if x > TileSize+36 && x < TileSize+216 && y > TileSize*4.5 && y < TileSize*4.5+80 {
+			g.btnHoverIndex = 2
+		} else {
+			g.btnHoverIndex = -1
+			// fancy min max floor math to determine the closest board square to the cursor, even
+			// when the mouse is not over the board
+			g.selectedCol = int(math.Floor(math.Min(math.Max(float64((x-448)/128), 0), 7)))
+			g.selectedRow = int(math.Floor(math.Min(math.Max(float64((y-28)/128), 0), 7)))
 
-		// invert selected row and col when the board is rotated
-		if !g.whitesTurn && g.gameType == 1 {
-			g.selectedCol = (g.selectedCol - 7) * -1
-			g.selectedRow = (g.selectedRow - 7) * -1
+			// invert selected row and col when the board is rotated
+			if !g.whitesTurn && g.gameType == 1 {
+				g.selectedCol = (g.selectedCol - 7) * -1
+				g.selectedRow = (g.selectedRow - 7) * -1
+			}
 		}
+
 		// left click hold and drag
 		if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-			// No piece selected but left mouse is held down
-			if g.selectedPiece == -1 {
-				// Match the selected tile to a piece location. Then, ensure the piece belongs to the
-				// team whose turn it currently is, and that it is still in play.
-				for i, piece := range g.pieces {
-					if piece.GetCol() == g.selectedCol && piece.GetRow() == g.selectedRow {
-						if piece.GetCol() != -1 && g.whitesTurn == piece.White() {
-							g.selectedPiece = i
-							// store the xy coordinates of the cursor
-							g.selectedLocation[0] = float64(x)/1.5 - 30
-							g.selectedLocation[1] = float64(y)/1.5 - 30
-							g.scheduleDraw = true
-							break
+
+			if g.btnHoverIndex != -1 {
+
+				if g.btnHoverIndex == 1 {
+					//TODO: Return to menu
+				} else if g.btnHoverIndex == 2 {
+					//TODO: Start new game of same type
+				}
+
+			} else {
+				//Not clicking on a button...
+
+				if g.selectedPiece == -1 {
+					// No piece selected but left mouse is held down
+					// Match the selected tile to a piece location. Then, ensure the piece belongs to the
+					// team whose turn it currently is, and that it is still in play.
+					for i, piece := range g.pieces {
+						if piece.GetCol() == g.selectedCol && piece.GetRow() == g.selectedRow {
+							if piece.GetCol() != -1 && g.whitesTurn == piece.White() {
+								g.selectedPiece = i
+								// store the xy coordinates of the cursor
+								g.selectedLocation[0] = float64(x)/1.5 - 30
+								g.selectedLocation[1] = float64(y)/1.5 - 30
+								g.scheduleDraw = true
+								break
+							}
 						}
 					}
+				} else {
+					// update current mouse position because piece is still selected
+					// and the mouse may be moving!
+					g.selectedLocation[0] = float64(x)/1.5 - 30
+					g.selectedLocation[1] = float64(y)/1.5 - 30
 				}
-			} else {
-				// update current mouse position because piece is still selected
-				// and the mouse may be moving!
-				g.selectedLocation[0] = float64(x)/1.5 - 30
-				g.selectedLocation[1] = float64(y)/1.5 - 30
 			}
 		} else { // MouseButtonLeft is not pressed
 
@@ -440,15 +489,17 @@ func (g *Game) DrawHighlightedTiles() {
 
 	}
 
-	// Draw hovered tile (in highlighter yellow)
-	for r := 0; r < 8; r++ {
-		for c := 0; c < 8; c++ {
-			if r == g.selectedRow && c == g.selectedCol {
-				opTile := &ebiten.DrawImageOptions{}
-				opTile.GeoM.Translate(float64(c*TileSize+448), float64(r*TileSize+28))
-				tileImage.Fill(color.RGBA{R: 0xea, G: 0xdd, B: 0x23, A: 0xff})
-				g.gameImage.DrawImage(tileImage, opTile)
-				break
+	// Draw hovered tile (in highlighter yellow) if not hovering a button
+	if g.btnHoverIndex == -1 {
+		for r := 0; r < 8; r++ {
+			for c := 0; c < 8; c++ {
+				if r == g.selectedRow && c == g.selectedCol {
+					opTile := &ebiten.DrawImageOptions{}
+					opTile.GeoM.Translate(float64(c*TileSize+448), float64(r*TileSize+28))
+					tileImage.Fill(color.RGBA{R: 0xea, G: 0xdd, B: 0x23, A: 0xff})
+					g.gameImage.DrawImage(tileImage, opTile)
+					break
+				}
 			}
 		}
 	}
@@ -536,6 +587,7 @@ func (g *Game) DrawUI() {
 		blackGrowth *= -1
 	}
 
+	//Draw the lists of taken piece images
 	for i, p := range whitePieces {
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Scale(0.7, 0.7)
@@ -550,26 +602,71 @@ func (g *Game) DrawUI() {
 		g.uiImage.DrawImage(p.GetImage(), op)
 	}
 
-	g.gameOver = true
-	if g.gameOver {
-		mainMenuOp := &ebiten.DrawImageOptions{}
-		mainMenuOp.GeoM.Translate(36+TileSize, TileSize*2.5)
-		mainMenuButton := ebiten.NewImage(TileSize*2, TileSize)
-		mainMenuButton.Fill(colornames.White)
-
-		newGameButtonOp := &ebiten.DrawImageOptions{}
-		newGameButtonOp.GeoM.Translate(36+TileSize, TileSize*4.5)
-		newGameButton := ebiten.NewImage(TileSize*2, TileSize)
-		newGameButton.Fill(colornames.Blue)
-
-		g.uiImage.DrawImage(mainMenuButton, mainMenuOp)
-		g.uiImage.DrawImage(newGameButton, newGameButtonOp)
+	opMenuBtn := &ebiten.DrawImageOptions{}
+	opMenuBtn.GeoM.Translate(TileSize+36, TileSize*2.5)
+	if g.btnHoverIndex == 1 {
+		g.uiImage.DrawImage(g.btnPrimaryHover, opMenuBtn)
+		text.Draw(g.uiImage, "Main Menu", g.uiFontSmall, TileSize+70, TileSize*2.5+50, colornames.Gray)
+	} else {
+		g.uiImage.DrawImage(g.btnPrimary, opMenuBtn)
+		text.Draw(g.uiImage, "Main Menu", g.uiFontSmall, TileSize+70, TileSize*2.5+50, colornames.Whitesmoke)
 	}
+
+	opMenuBtn.GeoM.Translate(0, TileSize*2)
+	if g.btnHoverIndex == 2 {
+		g.uiImage.DrawImage(g.btnInfoHover, opMenuBtn)
+		text.Draw(g.uiImage, "New Game", g.uiFontSmall, TileSize+74, TileSize*4.5+50, colornames.Gray)
+	} else {
+		g.uiImage.DrawImage(g.btnInfo, opMenuBtn)
+		text.Draw(g.uiImage, "New Game", g.uiFontSmall, TileSize+74, TileSize*4.5+50, colornames.Whitesmoke)
+	}
+
 }
 
-func (g *Game) DrawMainMenu() {
+func (g *Game) DrawMainMenu(generate bool) {
 	g.uiImage.Clear()
-	//do stuff
+	//We will draw a scrolling background of chess pieces and place button images on top
+	//Generate the image once to significantly improve performance and thus appearance
+	if generate {
+		g.selectedCol = 0 //reset this because we use it as a counter for scrolling effect
+		g.pieces[0] = &Pawn{Piece{0, 0, false}}
+		g.pieces[1] = &Pawn{Piece{0, 0, true}}
+		g.pieces[2] = &Rook{Piece{0, 0, false}}
+		g.pieces[3] = &Knight{Piece{0, 0, true}}
+		g.pieces[4] = &Bishop{Piece{0, 0, false}}
+		g.pieces[5] = &Queen{Piece{0, 0, true}}
+		g.pieces[6] = &King{Piece{0, 0, false}}
+		g.pieces[7] = &Bishop{Piece{0, 0, true}}
+		g.pieces[8] = &Knight{Piece{0, 0, false}}
+		g.pieces[9] = &Rook{Piece{0, 0, true}}
+
+		for y := 0; y < 24; y++ {
+			for x := 0; x < 24; x++ {
+				opPiece := &ebiten.DrawImageOptions{}
+				opPiece.GeoM.Scale(1.8, 1.8)
+				opPiece.GeoM.Translate(float64(x*100), float64(y*100))
+				opPiece.ColorM.Translate(0, 0, 0, -.7)
+				g.menuBgImage.DrawImage(g.pieces[(x+y)%10].GetImage(), opPiece)
+			}
+		}
+
+	}
+
+	opButton := &ebiten.DrawImageOptions{}
+	opButton.GeoM.Translate(Width/2-90, Height/2-40)
+	if g.btnHoverIndex == 1 {
+		g.uiImage.DrawImage(g.btnPrimaryHover, opButton)
+		text.Draw(g.uiImage, "Local Match", g.uiFontSmall, Width/2-76, Height/2+8, colornames.Whitesmoke)
+	} else {
+		g.uiImage.DrawImage(g.btnPrimary, opButton)
+		text.Draw(g.uiImage, "Local Match", g.uiFontSmall, Width/2-76, Height/2+8, colornames.Gray)
+	}
+
+	opButton.GeoM.Translate(0, 110)
+	opButton.ColorM.Translate(-.1, -.1, -.1, -.5)
+	g.uiImage.DrawImage(g.btnPrimary, opButton)
+	text.Draw(g.uiImage, "Versus Bot", g.uiFontSmall, Width/2-69, Height/2+118, colornames.Gray)
+
 }
 
 func (g *Game) InitPiecesAndImages() {
@@ -616,7 +713,6 @@ func (g *Game) InitPiecesAndImages() {
 	g.whitesTurn = true
 
 	g.DrawBoard()
-	g.DrawUI()
 	g.DrawStaticPieces()
 	g.scheduleDraw = false
 }
@@ -629,9 +725,19 @@ func (g *Game) InitGame() {
 	g.pieceImage = ebiten.NewImage(Width, Height)
 	g.movingImage = ebiten.NewImage(Width, Height)
 	g.uiImage = ebiten.NewImage(Width, Height)
+	g.menuBgImage = ebiten.NewImage(Width, Height)
 
 	//Attempt to load font
 	tt, err := opentype.Parse(fonts.PressStart2P_ttf)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	g.uiFontBig, err = opentype.NewFace(tt, &opentype.FaceOptions{
+		Size:    34,
+		DPI:     FontDPI,
+		Hinting: font.HintingVertical,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -646,13 +752,42 @@ func (g *Game) InitGame() {
 	}
 
 	g.uiFontSmall, err = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    18,
+		Size:    14,
 		DPI:     FontDPI,
 		Hinting: font.HintingVertical,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	fileLoc, _ := filepath.Abs("images/btnPrimary.png")
+	g.btnPrimary, _, err = ebitenutil.NewImageFromFile(fileLoc)
+	if err != nil {
+		return
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fileLoc, _ = filepath.Abs("images/btnPrimaryHover.png")
+	g.btnPrimaryHover, _, err = ebitenutil.NewImageFromFile(fileLoc)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fileLoc, _ = filepath.Abs("images/btnInfo.png")
+	g.btnInfo, _, err = ebitenutil.NewImageFromFile(fileLoc)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fileLoc, _ = filepath.Abs("images/btnInfoHover.png")
+	g.btnInfoHover, _, err = ebitenutil.NewImageFromFile(fileLoc)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	g.DrawMainMenu(true)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
