@@ -52,6 +52,12 @@ type Game struct {
 	btnPrimaryHover     *ebiten.Image
 	btnInfo             *ebiten.Image
 	btnInfoHover        *ebiten.Image
+	scaleX              float64
+	scaleY              float64
+	factor              float64
+	screenSize          [2]int
+	mainMenuButtons     [2]Button
+	inGameButtons       [2]Button
 }
 
 const (
@@ -67,6 +73,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	screen.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
 
+	//store screen size
+	g.screenSize[0], g.screenSize[1] = screen.Size()
+
 	switch g.gameType {
 	case -1:
 		g.DrawMainMenu(false) //Prints to g.uiImage and g.menuBgImage
@@ -77,10 +86,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		opMenuBg.GeoM.Translate(float64(-g.selectedCol*2), float64(-150+g.selectedCol*2))
 		opMenuBg.GeoM.Scale(1.3, 1.3)
 		screen.DrawImage(g.menuBgImage, opMenuBg)
-
 		screen.DrawImage(g.uiImage, &ebiten.DrawImageOptions{})
-		text.Draw(screen, "Chess", g.uiFontBig, 770, 432, colornames.White)
-		text.Draw(screen, "by bojerg", g.uiFont, 960, 432, colornames.Whitesmoke)
+
+		menuTextY := int(float64(g.screenSize[1]) * 0.4)
+		text.Draw(screen, "Chess", g.uiFontBig, g.screenSize[0]/2-190, menuTextY, colornames.White)
+		text.Draw(screen, "by bojerg", g.uiFont, g.screenSize[0]/2, menuTextY, colornames.Whitesmoke)
 
 	default:
 		//play the game
@@ -100,14 +110,26 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 
 		//Draw operation settings & execution
-		sw, sh := screen.Size()
+		uiOp := &ebiten.DrawImageOptions{}
+		boardOp := &ebiten.DrawImageOptions{}
 		bw, bh := g.boardImage.Size()
 
-		uiOp := &ebiten.DrawImageOptions{}
-		uiOpX := (sw - bw) / 2
-		uiOpY := (sh - bh) / 2
+		//factor is used to ensure board fits onto screen nicely at small resolutions
+		factor := g.scaleX
+		if g.scaleX < g.scaleY {
+			factor = g.scaleY
+		}
+		if factor == 0 {
+			factor = 0.01
+		}
+		//store factor in game struct to dynamically change mouse cursor targeting coordinates
+		g.factor = 0.92 / factor
 
-		boardOp := &ebiten.DrawImageOptions{}
+		uiOp.GeoM.Scale(g.factor, g.factor)
+		boardOp.GeoM.Scale(g.factor, g.factor)
+
+		uiOpX := (float64(g.screenSize[0]) - float64(bw)*g.factor) / 2
+		uiOpY := (float64(g.screenSize[1]) - float64(bh)*g.factor) / 2
 		boardOpX := uiOpX
 		boardOpY := uiOpY
 		boardOpRotate := 0.0
@@ -116,12 +138,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if !g.whitesTurn && g.gameType == 1 {
 			boardOpRotate = math.Pi
 			//bring the board back into view after rotating
-			boardOpX += bw
-			boardOpY += bh
+			boardOpX += float64(bw)
+			boardOpY += float64(bh)
 		}
 
 		boardOp.GeoM.Rotate(boardOpRotate)
-		boardOp.GeoM.Translate(float64(boardOpX), float64(boardOpY))
+		boardOp.GeoM.Translate(boardOpX, boardOpY)
 
 		screen.DrawImage(g.boardImage, boardOp)
 		screen.DrawImage(g.gameImage, boardOp)
@@ -130,7 +152,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		screen.DrawImage(g.movingImage, uiOp)
 
 		if g.gameOver {
-			text.Draw(screen, g.gameOverMsg, g.uiFont, (sw/2)-len(g.gameOverMsg)*12, sh/2+12, colornames.Darkred)
+			text.Draw(screen, g.gameOverMsg, g.uiFont, (g.screenSize[0]/2)-len(g.gameOverMsg)*14, g.screenSize[1]/2+14, colornames.Darkred)
 		}
 	}
 }
@@ -140,17 +162,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 func (g *Game) Update() error {
 	x, y := ebiten.CursorPosition()
 
-	// No way to exit fullscreen without this for now
-	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
-		ebiten.SetFullscreen(false)
-	}
-
 	switch g.gameType {
 	case -1:
 		//at main menu
 
 		//Indicating which controls are hovered over
-		if x > Width/2-90 && x < Width/2+90 && y > Height/2-40 && y < Height/2+40 {
+		if g.mainMenuButtons[0].PosInBounds(x, y) {
 			g.btnHoverIndex = 1
 		} else {
 			g.btnHoverIndex = -1
@@ -179,16 +196,24 @@ func (g *Game) Update() error {
 
 		// XY locations reflect the two buttons drawn on screen
 		// This code block determines what the mouse is interacting with and updates the appropriate parameter
-		if x > TileSize+36 && x < TileSize+216 && y > TileSize*2.5 && y < TileSize*2.5+80 {
+		// Factor is utilized here to match up the scaled down render with our "scaled down" mouse XY coordinates
+		ax := int(float64(x) / g.factor)
+		ay := int(float64(y) / g.factor)
+
+		edgeX := (float64(g.screenSize[0]) - (1024 / g.factor)) / 2
+		edgeY := (float64(g.screenSize[1]) - (1024 / g.factor)) / 2
+		i := 78 / g.factor
+
+		if g.inGameButtons[0].PosInBounds(ax, ay) {
 			g.btnHoverIndex = 1
-		} else if x > TileSize+36 && x < TileSize+216 && y > TileSize*4.5 && y < TileSize*4.5+80 {
+		} else if g.inGameButtons[1].PosInBounds(ax, ay) {
 			g.btnHoverIndex = 2
 		} else {
 			g.btnHoverIndex = -1
 			// fancy min max floor math to determine the closest board square to the cursor, even
 			// when the mouse is not over the board
-			g.selectedCol = int(math.Floor(math.Min(math.Max(float64((x-448)/128), 0), 7)))
-			g.selectedRow = int(math.Floor(math.Min(math.Max(float64((y-28)/128), 0), 7)))
+			g.selectedCol = int(math.Floor(math.Min(math.Max((float64(x)-edgeX)/i, 0), 7)))
+			g.selectedRow = int(math.Floor(math.Min(math.Max((float64(y)-edgeY)/i, 0), 7)))
 
 			// invert selected row and col when the board is rotated
 			if !g.whitesTurn && g.gameType == 1 {
@@ -257,7 +282,7 @@ func (g *Game) Update() error {
 
 // MakeMoveIfLegal handles three things: Checking if a move is legal, removing a taken piece from the
 // game if the move was legal, and handling the switching of turns.
-func (g *Game) MakeMoveIfLegal(row int, col int) {
+func (g *Game) MakeMoveIfLegal(row, col int) {
 	//check if move is legal
 	//first, make sure the tile it's being set on is possible by comparing it to the Piece's GetMoves function
 	//second, don't allow the player to put themselves into check, and see if they are putting their opponent in check
@@ -602,23 +627,30 @@ func (g *Game) DrawUI() {
 		g.uiImage.DrawImage(p.GetImage(), op)
 	}
 
-	opMenuBtn := &ebiten.DrawImageOptions{}
-	opMenuBtn.GeoM.Translate(TileSize+36, TileSize*2.5)
+	btnX := int(float64(g.screenSize[0]) * 0.1)
+	g.inGameButtons[0].x = btnX
+	g.inGameButtons[0].y = g.screenSize[1]/2 - 170
+	g.inGameButtons[1].x = btnX
+	g.inGameButtons[1].y = g.screenSize[1]/2 + 86
+
+	opMenuBtn1 := &ebiten.DrawImageOptions{}
+	opMenuBtn1.GeoM.Translate(float64(g.inGameButtons[0].x), float64(g.inGameButtons[0].y))
 	if g.btnHoverIndex == 1 {
-		g.uiImage.DrawImage(g.btnPrimaryHover, opMenuBtn)
-		text.Draw(g.uiImage, "Main Menu", g.uiFontSmall, TileSize+70, TileSize*2.5+50, colornames.Gray)
+		g.uiImage.DrawImage(g.btnPrimaryHover, opMenuBtn1)
+		text.Draw(g.uiImage, g.inGameButtons[0].text, g.uiFontSmall, g.inGameButtons[0].GetTextX(), g.inGameButtons[0].GetTextY(), colornames.Gray)
 	} else {
-		g.uiImage.DrawImage(g.btnPrimary, opMenuBtn)
-		text.Draw(g.uiImage, "Main Menu", g.uiFontSmall, TileSize+70, TileSize*2.5+50, colornames.Whitesmoke)
+		g.uiImage.DrawImage(g.btnPrimary, opMenuBtn1)
+		text.Draw(g.uiImage, g.inGameButtons[0].text, g.uiFontSmall, g.inGameButtons[0].GetTextX(), g.inGameButtons[0].GetTextY(), colornames.Whitesmoke)
 	}
 
-	opMenuBtn.GeoM.Translate(0, TileSize*2)
+	opMenuBtn2 := &ebiten.DrawImageOptions{}
+	opMenuBtn2.GeoM.Translate(float64(g.inGameButtons[1].x), float64(g.inGameButtons[1].y))
 	if g.btnHoverIndex == 2 {
-		g.uiImage.DrawImage(g.btnInfoHover, opMenuBtn)
-		text.Draw(g.uiImage, "New Game", g.uiFontSmall, TileSize+74, TileSize*4.5+50, colornames.Gray)
+		g.uiImage.DrawImage(g.btnInfoHover, opMenuBtn2)
+		text.Draw(g.uiImage, g.inGameButtons[1].text, g.uiFontSmall, g.inGameButtons[1].GetTextX(), g.inGameButtons[1].GetTextY(), colornames.Gray)
 	} else {
-		g.uiImage.DrawImage(g.btnInfo, opMenuBtn)
-		text.Draw(g.uiImage, "New Game", g.uiFontSmall, TileSize+74, TileSize*4.5+50, colornames.Whitesmoke)
+		g.uiImage.DrawImage(g.btnInfo, opMenuBtn2)
+		text.Draw(g.uiImage, g.inGameButtons[1].text, g.uiFontSmall, g.inGameButtons[1].GetTextX(), g.inGameButtons[1].GetTextY(), colornames.Whitesmoke)
 	}
 
 }
@@ -652,20 +684,27 @@ func (g *Game) DrawMainMenu(generate bool) {
 
 	}
 
-	opButton := &ebiten.DrawImageOptions{}
-	opButton.GeoM.Translate(Width/2-90, Height/2-40)
+	g.mainMenuButtons[0].x = g.screenSize[0]/2 - 90
+	g.mainMenuButtons[0].y = g.screenSize[1]/2 + 8
+
+	g.mainMenuButtons[1].x = g.screenSize[0]/2 - 90
+	g.mainMenuButtons[1].y = g.screenSize[1]/2 + 118
+
+	opButton1 := &ebiten.DrawImageOptions{}
+	opButton1.GeoM.Translate(float64(g.mainMenuButtons[0].x), float64(g.mainMenuButtons[0].y))
 	if g.btnHoverIndex == 1 {
-		g.uiImage.DrawImage(g.btnPrimaryHover, opButton)
-		text.Draw(g.uiImage, "Local Match", g.uiFontSmall, Width/2-76, Height/2+8, colornames.Whitesmoke)
+		g.uiImage.DrawImage(g.btnPrimaryHover, opButton1)
+		text.Draw(g.uiImage, g.mainMenuButtons[0].text, g.uiFontSmall, g.mainMenuButtons[0].GetTextX(), g.mainMenuButtons[0].GetTextY(), colornames.Whitesmoke)
 	} else {
-		g.uiImage.DrawImage(g.btnPrimary, opButton)
-		text.Draw(g.uiImage, "Local Match", g.uiFontSmall, Width/2-76, Height/2+8, colornames.Gray)
+		g.uiImage.DrawImage(g.btnPrimary, opButton1)
+		text.Draw(g.uiImage, g.mainMenuButtons[0].text, g.uiFontSmall, g.mainMenuButtons[0].GetTextX(), g.mainMenuButtons[0].GetTextY(), colornames.Gray)
 	}
 
-	opButton.GeoM.Translate(0, 110)
-	opButton.ColorM.Translate(-.1, -.1, -.1, -.5)
-	g.uiImage.DrawImage(g.btnPrimary, opButton)
-	text.Draw(g.uiImage, "Versus Bot", g.uiFontSmall, Width/2-69, Height/2+118, colornames.Gray)
+	opButton2 := &ebiten.DrawImageOptions{}
+	opButton2.GeoM.Translate(float64(g.mainMenuButtons[1].x), float64(g.mainMenuButtons[1].y))
+	opButton2.ColorM.Translate(-.1, -.1, -.1, -.5) //TODO: remove color fading when feature added
+	g.uiImage.DrawImage(g.btnPrimary, opButton2)
+	text.Draw(g.uiImage, g.mainMenuButtons[1].text, g.uiFontSmall, g.mainMenuButtons[1].GetTextX(), g.mainMenuButtons[1].GetTextY(), colornames.Gray)
 
 }
 
@@ -726,6 +765,8 @@ func (g *Game) InitGame() {
 	g.movingImage = ebiten.NewImage(Width, Height)
 	g.uiImage = ebiten.NewImage(Width, Height)
 	g.menuBgImage = ebiten.NewImage(Width, Height)
+	g.screenSize[0] = Width
+	g.screenSize[1] = Height
 
 	//Attempt to load font
 	tt, err := opentype.Parse(fonts.PressStart2P_ttf)
@@ -787,20 +828,57 @@ func (g *Game) InitGame() {
 		log.Fatal(err)
 	}
 
+	var localMatchBtn Button
+	localMatchBtn.fontSize = 14
+	localMatchBtn.text = "Local Match"
+	localMatchBtn.x = Width/2 - 90
+	localMatchBtn.y = Height/2 + 8
+
+	var versusBotBtn Button
+	versusBotBtn.fontSize = 14
+	versusBotBtn.text = "Versus Bot"
+	versusBotBtn.x = Width/2 - 90
+	versusBotBtn.y = Height/2 + 118
+
+	g.mainMenuButtons[0] = localMatchBtn
+	g.mainMenuButtons[1] = versusBotBtn
+
+	var mainMenuButton Button
+	mainMenuButton.x = 200
+	mainMenuButton.y = 370
+	mainMenuButton.text = "Main Menu"
+	mainMenuButton.fontSize = 14
+
+	var newGameButton Button
+	newGameButton.x = 200
+	newGameButton.y = 626
+	newGameButton.text = "New Game"
+	newGameButton.fontSize = 14
+
+	g.inGameButtons[0] = mainMenuButton
+	g.inGameButtons[1] = newGameButton
+
 	g.DrawMainMenu(true)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return Width, Height
+
+	g.scaleX = float64(Width) / float64(outsideWidth)
+	g.scaleY = float64(Height) / float64(outsideHeight)
+
+	return outsideWidth, outsideHeight
 }
 
 func main() {
+	ebiten.SetWindowSize(1280, 720)
+	ebiten.SetWindowTitle("Chess by bojerg")
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+	ebiten.SetWindowSizeLimits(800, 450, 7680, 4320)
+	ebiten.MaximizeWindow()
+
 	game := &Game{}
 	game.InitGame()
-	ebiten.SetWindowSize(Width, Height)
-	ebiten.SetWindowTitle("chess")
-	ebiten.SetFullscreen(true)
-	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
