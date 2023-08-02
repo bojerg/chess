@@ -138,8 +138,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if !g.whitesTurn && g.gameType == 1 {
 			boardOpRotate = math.Pi
 			//bring the board back into view after rotating
-			boardOpX += float64(bw)
-			boardOpY += float64(bh)
+			boardOpX += float64(bw) * g.factor
+			boardOpY += float64(bh) * g.factor
 		}
 
 		boardOp.GeoM.Rotate(boardOpRotate)
@@ -200,9 +200,9 @@ func (g *Game) Update() error {
 		ax := int(float64(x) / g.factor)
 		ay := int(float64(y) / g.factor)
 
-		edgeX := (float64(g.screenSize[0]) - (1024 / g.factor)) / 2
-		edgeY := (float64(g.screenSize[1]) - (1024 / g.factor)) / 2
-		i := 78 / g.factor
+		edgeX := (float64(g.screenSize[0]) - (1024 * g.factor)) / 2
+		edgeY := (float64(g.screenSize[1]) - (1024 * g.factor)) / 2
+		i := 128 * g.factor
 
 		if g.inGameButtons[0].PosInBounds(ax, ay) {
 			g.btnHoverIndex = 1
@@ -245,8 +245,8 @@ func (g *Game) Update() error {
 							if piece.GetCol() != -1 && g.whitesTurn == piece.White() {
 								g.selectedPiece = i
 								// store the xy coordinates of the cursor
-								g.selectedLocation[0] = float64(x)/1.5 - 30
-								g.selectedLocation[1] = float64(y)/1.5 - 30
+								g.selectedLocation[0] = float64(ax)
+								g.selectedLocation[1] = float64(ay)
 								g.scheduleDraw = true
 								break
 							}
@@ -255,8 +255,8 @@ func (g *Game) Update() error {
 				} else {
 					// update current mouse position because piece is still selected
 					// and the mouse may be moving!
-					g.selectedLocation[0] = float64(x)/1.5 - 30
-					g.selectedLocation[1] = float64(y)/1.5 - 30
+					g.selectedLocation[0] = float64(ax)
+					g.selectedLocation[1] = float64(ay)
 				}
 			}
 		} else { // MouseButtonLeft is not pressed
@@ -485,8 +485,8 @@ func (g *Game) DrawStaticPieces() {
 func (g *Game) DrawMovingPiece() {
 	for i, _ := range g.pieces {
 		if i == g.selectedPiece {
-			tx := g.selectedLocation[0] * 1.5
-			ty := g.selectedLocation[1] * 1.5
+			tx := g.selectedLocation[0] - 45
+			ty := g.selectedLocation[1] - 45
 			opPiece := &ebiten.DrawImageOptions{}
 			opPiece.GeoM.Scale(1.5, 1.5) //essentially W x H = 90 x 90
 			opPiece.GeoM.Translate(tx, ty)
@@ -629,9 +629,9 @@ func (g *Game) DrawUI() {
 
 	btnX := int(float64(g.screenSize[0]) * 0.1)
 	g.inGameButtons[0].x = btnX
-	g.inGameButtons[0].y = g.screenSize[1]/2 - 170
+	g.inGameButtons[0].y = int((float64(g.screenSize[1])/g.factor)/2) - BtnHeight - 7
 	g.inGameButtons[1].x = btnX
-	g.inGameButtons[1].y = g.screenSize[1]/2 + 86
+	g.inGameButtons[1].y = int((float64(g.screenSize[1])/g.factor)/2) + 7
 
 	opMenuBtn1 := &ebiten.DrawImageOptions{}
 	opMenuBtn1.GeoM.Translate(float64(g.inGameButtons[0].x), float64(g.inGameButtons[0].y))
@@ -762,9 +762,12 @@ func (g *Game) InitGame() {
 	g.boardImage = ebiten.NewImage(Width, Height)
 	g.gameImage = ebiten.NewImage(Width, Height)
 	g.pieceImage = ebiten.NewImage(Width, Height)
-	g.movingImage = ebiten.NewImage(Width, Height)
-	g.uiImage = ebiten.NewImage(Width, Height)
 	g.menuBgImage = ebiten.NewImage(Width, Height)
+
+	//making these larger resolves scaling cut-off issues
+	g.movingImage = ebiten.NewImage(Width*2, Height*2)
+	g.uiImage = ebiten.NewImage(Width*2, Height*2)
+
 	g.screenSize[0] = Width
 	g.screenSize[1] = Height
 
