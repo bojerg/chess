@@ -641,18 +641,18 @@ func (g *Game) DrawUI() {
 
 	//The following offsets and modifiers help to dynamically grow the column of taken pieces and flip them
 	//as the board is flipped
-	whiteXOffset := 384
-	blackXOffset := 448 + TileSize*8
-	var whiteYOffset float64 = 28
-	var blackYOffset float64 = TileSize * 8
-	whiteGrowth := -16
-	blackGrowth := 16
+	whiteXOffset := ((float64(g.screenSize[0]) - (TileSize * 8 * g.factor)) / 2) - 60*g.factor
+	blackXOffset := ((float64(g.screenSize[0]) - (TileSize * 8 * g.factor)) / 2) + (TileSize*8+60)*g.factor
+	whiteYOffset := (float64(g.screenSize[1]) - (TileSize * 8 * g.factor)) / 2
+	blackYOffset := TileSize * 8 * g.factor
+	whiteGrowth := -16 * g.factor
+	blackGrowth := 16 * g.factor
 
 	// Rotate the board for local multiplayer (gameType 1)
 	if !g.whitesTurn && g.gameType == 1 {
 		whiteXOffset = blackXOffset
 		whiteYOffset = blackYOffset
-		blackXOffset = 384
+		blackXOffset = ((float64(g.screenSize[0]) - (TileSize * 8 * g.factor)) / 2) - 60*g.factor
 		blackYOffset = 28
 		whiteGrowth *= -1
 		blackGrowth *= -1
@@ -662,14 +662,14 @@ func (g *Game) DrawUI() {
 	for i, p := range whitePieces {
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Scale(0.7, 0.7)
-		op.GeoM.Translate(float64((len(whitePieces)-i)*whiteGrowth+whiteXOffset), whiteYOffset)
+		op.GeoM.Translate(float64(len(whitePieces)-i)*whiteGrowth+whiteXOffset, whiteYOffset)
 		g.uiImage.DrawImage(p.Image(), op)
 	}
 
 	for i, p := range blackPieces {
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Scale(0.7, 0.7)
-		op.GeoM.Translate(float64((len(blackPieces)-i)*blackGrowth+blackXOffset), blackYOffset)
+		op.GeoM.Translate(float64(len(blackPieces)-i)*blackGrowth+blackXOffset, blackYOffset)
 		g.uiImage.DrawImage(p.Image(), op)
 	}
 
