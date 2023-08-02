@@ -6,10 +6,9 @@ type Bishop struct {
 	Piece
 }
 
-// GetMoves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
+// Moves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
 // in an array with a length of two-- Row and Col.
-// TODO everything
-func (p *Bishop) GetMoves(pieces [32]ChessPiece) [][2]int {
+func (p *Bishop) Moves(g Game) [][2]int {
 	moves := make([][2]int, 0)
 
 	//The following are for loops in the diagonals
@@ -23,7 +22,7 @@ func (p *Bishop) GetMoves(pieces [32]ChessPiece) [][2]int {
 			break
 		}
 
-		otherPiece := GetPieceOnSquare(row, col, pieces)
+		otherPiece := GetPieceOnSquare(row, col, g.pieces)
 		if otherPiece == nil {
 			//No piece encountered, valid move
 			moves = append(moves, [2]int{row, col})
@@ -47,7 +46,7 @@ func (p *Bishop) GetMoves(pieces [32]ChessPiece) [][2]int {
 			break
 		}
 
-		otherPiece := GetPieceOnSquare(row, col, pieces)
+		otherPiece := GetPieceOnSquare(row, col, g.pieces)
 		if otherPiece == nil {
 			//No piece encountered, valid move
 			moves = append(moves, [2]int{row, col})
@@ -72,7 +71,7 @@ func (p *Bishop) GetMoves(pieces [32]ChessPiece) [][2]int {
 			break
 		}
 
-		otherPiece := GetPieceOnSquare(row, col, pieces)
+		otherPiece := GetPieceOnSquare(row, col, g.pieces)
 		if otherPiece == nil {
 			//No piece encountered, valid move
 			moves = append(moves, [2]int{row, col})
@@ -97,7 +96,7 @@ func (p *Bishop) GetMoves(pieces [32]ChessPiece) [][2]int {
 			break
 		}
 
-		otherPiece := GetPieceOnSquare(row, col, pieces)
+		otherPiece := GetPieceOnSquare(row, col, g.pieces)
 		if otherPiece == nil {
 			//No piece encountered, valid move
 			moves = append(moves, [2]int{row, col})
@@ -115,12 +114,7 @@ func (p *Bishop) GetMoves(pieces [32]ChessPiece) [][2]int {
 	return moves
 }
 
-func (p *Bishop) IsKing() bool {
-	return false
-}
-
-// GetName primarily intended for debugging
-func (p *Bishop) GetName() string {
+func (p *Bishop) Name() string {
 	if p.white {
 		return "White bishop"
 	} else {
@@ -128,7 +122,7 @@ func (p *Bishop) GetName() string {
 	}
 }
 
-func (p *Bishop) GetImage() *ebiten.Image {
+func (p *Bishop) Image() *ebiten.Image {
 	filepathStr := "images/"
 	if p.white {
 		filepathStr += "whiteBishop.png"
@@ -139,11 +133,11 @@ func (p *Bishop) GetImage() *ebiten.Image {
 	return GetImage(filepathStr)
 }
 
-func (p *Bishop) GetCol() int {
+func (p *Bishop) Col() int {
 	return p.col
 }
 
-func (p *Bishop) GetRow() int {
+func (p *Bishop) Row() int {
 	return p.row
 }
 

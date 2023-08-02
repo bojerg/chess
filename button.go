@@ -12,11 +12,11 @@ const (
 	BtnWidth  = 180
 )
 
-func (b *Button) GetTextX() int {
+func (b *Button) TextX() int {
 	return b.x + BtnWidth/2 - ((len(b.text) * b.fontSize) / 2)
 }
 
-func (b *Button) GetTextY() int {
+func (b *Button) TextY() int {
 	return b.y + BtnHeight/2 + b.fontSize/2
 }
 

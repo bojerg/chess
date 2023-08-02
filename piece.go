@@ -21,15 +21,14 @@ type Piece struct {
 
 // ChessPiece is the collection of all pieces and their shared functionality
 type ChessPiece interface {
-	GetCol() int
+	Col() int
 	SetCol(int)
-	GetRow() int
+	Row() int
 	SetRow(int)
 	White() bool
-	IsKing() bool
-	GetImage() *ebiten.Image
-	GetMoves([32]ChessPiece) [][2]int
-	GetName() string
+	Image() *ebiten.Image
+	Moves(Game) [][2]int
+	Name() string
 }
 
 // GetImage returns the corresponding ebiten image from filepath argument
@@ -48,6 +47,14 @@ func GetImage(filepathStr string) *ebiten.Image {
 
 }
 
+func IsPawn(piece ChessPiece) bool {
+	return piece.Name()[6:] == "pawn"
+}
+
+func IsKing(piece ChessPiece) bool {
+	return piece.Name()[6:] == "king"
+}
+
 func IsInBounds(row int, col int) bool {
 	return row <= 7 && row >= 0 && col <= 7 && col >= 0
 }
@@ -56,7 +63,7 @@ func IsInBounds(row int, col int) bool {
 // is found, a copy of that piece is returned. Otherwise, returns nil.
 func GetPieceOnSquare(row int, col int, pieces [32]ChessPiece) ChessPiece {
 	for _, piece := range pieces {
-		if piece.GetCol() == col && piece.GetRow() == row {
+		if piece.Col() == col && piece.Row() == row {
 			return piece
 		}
 	}
@@ -67,7 +74,7 @@ func GetPieceOnSquare(row int, col int, pieces [32]ChessPiece) ChessPiece {
 //
 //	Splitting the name after the space to get the piece type  ex. GetName() = "White pawn"
 func GetWeighting(piece ChessPiece) int {
-	switch strings.Split(piece.GetName(), " ")[1] {
+	switch strings.Split(piece.Name(), " ")[1] {
 	case "pawn":
 		return 1
 	case "knight":

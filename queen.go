@@ -8,15 +8,14 @@ type Queen struct {
 	Piece
 }
 
-// GetMoves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
+// Moves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
 // in an array with a length of two-- Row and Col.
-// TODO everything
-func (p *Queen) GetMoves(pieces [32]ChessPiece) [][2]int {
+func (p *Queen) Moves(g Game) [][2]int {
 	moves := make([][2]int, 0)
 
 	//Queen can go any direction until it encounters a piece. If not on it's team, can take.
 	for col := p.col - 1; col >= 0; col-- {
-		otherPiece := GetPieceOnSquare(p.row, col, pieces)
+		otherPiece := GetPieceOnSquare(p.row, col, g.pieces)
 		if otherPiece == nil {
 			//No piece encountered, valid move
 			moves = append(moves, [2]int{p.row, col})
@@ -31,7 +30,7 @@ func (p *Queen) GetMoves(pieces [32]ChessPiece) [][2]int {
 	}
 
 	for col := p.col + 1; col <= 7; col++ {
-		otherPiece := GetPieceOnSquare(p.row, col, pieces)
+		otherPiece := GetPieceOnSquare(p.row, col, g.pieces)
 		if otherPiece == nil {
 			//No piece encountered, valid move
 			moves = append(moves, [2]int{p.row, col})
@@ -46,7 +45,7 @@ func (p *Queen) GetMoves(pieces [32]ChessPiece) [][2]int {
 	}
 
 	for row := p.row - 1; row >= 0; row-- {
-		otherPiece := GetPieceOnSquare(row, p.col, pieces)
+		otherPiece := GetPieceOnSquare(row, p.col, g.pieces)
 		if otherPiece == nil {
 			//No piece encountered, valid move
 			moves = append(moves, [2]int{row, p.col})
@@ -61,7 +60,7 @@ func (p *Queen) GetMoves(pieces [32]ChessPiece) [][2]int {
 	}
 
 	for row := p.row + 1; row <= 7; row++ {
-		otherPiece := GetPieceOnSquare(row, p.col, pieces)
+		otherPiece := GetPieceOnSquare(row, p.col, g.pieces)
 		if otherPiece == nil {
 			//No piece encountered, valid move
 			moves = append(moves, [2]int{row, p.col})
@@ -86,7 +85,7 @@ func (p *Queen) GetMoves(pieces [32]ChessPiece) [][2]int {
 			break
 		}
 
-		otherPiece := GetPieceOnSquare(row, col, pieces)
+		otherPiece := GetPieceOnSquare(row, col, g.pieces)
 		if otherPiece == nil {
 			//No piece encountered, valid move
 			moves = append(moves, [2]int{row, col})
@@ -110,7 +109,7 @@ func (p *Queen) GetMoves(pieces [32]ChessPiece) [][2]int {
 			break
 		}
 
-		otherPiece := GetPieceOnSquare(row, col, pieces)
+		otherPiece := GetPieceOnSquare(row, col, g.pieces)
 		if otherPiece == nil {
 			//No piece encountered, valid move
 			moves = append(moves, [2]int{row, col})
@@ -135,7 +134,7 @@ func (p *Queen) GetMoves(pieces [32]ChessPiece) [][2]int {
 			break
 		}
 
-		otherPiece := GetPieceOnSquare(row, col, pieces)
+		otherPiece := GetPieceOnSquare(row, col, g.pieces)
 		if otherPiece == nil {
 			//No piece encountered, valid move
 			moves = append(moves, [2]int{row, col})
@@ -160,7 +159,7 @@ func (p *Queen) GetMoves(pieces [32]ChessPiece) [][2]int {
 			break
 		}
 
-		otherPiece := GetPieceOnSquare(row, col, pieces)
+		otherPiece := GetPieceOnSquare(row, col, g.pieces)
 		if otherPiece == nil {
 			//No piece encountered, valid move
 			moves = append(moves, [2]int{row, col})
@@ -178,12 +177,7 @@ func (p *Queen) GetMoves(pieces [32]ChessPiece) [][2]int {
 	return moves
 }
 
-func (p *Queen) IsKing() bool {
-	return false
-}
-
-// GetName primarily intended for debugging
-func (p *Queen) GetName() string {
+func (p *Queen) Name() string {
 	if p.white {
 		return "White queen"
 	} else {
@@ -191,7 +185,7 @@ func (p *Queen) GetName() string {
 	}
 }
 
-func (p *Queen) GetImage() *ebiten.Image {
+func (p *Queen) Image() *ebiten.Image {
 	filepathStr := "images/"
 	if p.white {
 		filepathStr += "whiteQueen.png"
@@ -202,11 +196,11 @@ func (p *Queen) GetImage() *ebiten.Image {
 	return GetImage(filepathStr)
 }
 
-func (p *Queen) GetCol() int {
+func (p *Queen) Col() int {
 	return p.col
 }
 
-func (p *Queen) GetRow() int {
+func (p *Queen) Row() int {
 	return p.row
 }
 
