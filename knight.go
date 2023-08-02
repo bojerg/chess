@@ -8,9 +8,9 @@ type Knight struct {
 	Piece
 }
 
-// GetMoves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
+// Moves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
 // in an array with a length of two-- Row and Col.
-func (p *Knight) GetMoves(pieces [32]ChessPiece) [][2]int {
+func (p *Knight) Moves(g Game) [][2]int {
 	moves := make([][2]int, 0)
 
 	possibleMoves := [8][2]int{
@@ -26,7 +26,7 @@ func (p *Knight) GetMoves(pieces [32]ChessPiece) [][2]int {
 
 	for _, move := range possibleMoves {
 		if IsInBounds(move[0], move[1]) {
-			otherPiece := GetPieceOnSquare(move[0], move[1], pieces)
+			otherPiece := GetPieceOnSquare(move[0], move[1], g.pieces)
 			if otherPiece == nil || otherPiece.White() != p.white {
 				moves = append(moves, [2]int{move[0], move[1]})
 			}
@@ -36,12 +36,7 @@ func (p *Knight) GetMoves(pieces [32]ChessPiece) [][2]int {
 	return moves
 }
 
-func (p *Knight) IsKing() bool {
-	return false
-}
-
-// GetName primarily intended for debugging
-func (p *Knight) GetName() string {
+func (p *Knight) Name() string {
 	if p.white {
 		return "White knight"
 	} else {
@@ -49,7 +44,7 @@ func (p *Knight) GetName() string {
 	}
 }
 
-func (p *Knight) GetImage() *ebiten.Image {
+func (p *Knight) Image() *ebiten.Image {
 	filepathStr := "images/"
 	if p.white {
 		filepathStr += "whiteKnight.png"
@@ -60,11 +55,11 @@ func (p *Knight) GetImage() *ebiten.Image {
 	return GetImage(filepathStr)
 }
 
-func (p *Knight) GetCol() int {
+func (p *Knight) Col() int {
 	return p.col
 }
 
-func (p *Knight) GetRow() int {
+func (p *Knight) Row() int {
 	return p.row
 }
 

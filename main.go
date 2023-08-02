@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
@@ -42,6 +43,8 @@ type Game struct {
 	selectedPiece       int
 	selectedCol         int
 	selectedRow         int
+	moveNum             int
+	enPassantLocation   [2]int
 	gameOver            bool
 	gameOverMsg         string
 	uiFontBig           font.Face
@@ -52,6 +55,12 @@ type Game struct {
 	btnPrimaryHover     *ebiten.Image
 	btnInfo             *ebiten.Image
 	btnInfoHover        *ebiten.Image
+	scaleX              float64
+	scaleY              float64
+	factor              float64
+	screenSize          [2]int
+	mainMenuButtons     [2]Button
+	inGameButtons       [2]Button
 }
 
 const (
@@ -67,6 +76,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	screen.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
 
+	//store screen size
+	g.screenSize[0], g.screenSize[1] = screen.Size()
+
 	switch g.gameType {
 	case -1:
 		g.DrawMainMenu(false) //Prints to g.uiImage and g.menuBgImage
@@ -77,10 +89,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		opMenuBg.GeoM.Translate(float64(-g.selectedCol*2), float64(-150+g.selectedCol*2))
 		opMenuBg.GeoM.Scale(1.3, 1.3)
 		screen.DrawImage(g.menuBgImage, opMenuBg)
-
 		screen.DrawImage(g.uiImage, &ebiten.DrawImageOptions{})
-		text.Draw(screen, "Chess", g.uiFontBig, 770, 432, colornames.White)
-		text.Draw(screen, "by bojerg", g.uiFont, 960, 432, colornames.Whitesmoke)
+
+		menuTextY := int(float64(g.screenSize[1]) * 0.4)
+		text.Draw(screen, "Chess", g.uiFontBig, g.screenSize[0]/2-190, menuTextY, colornames.White)
+		text.Draw(screen, "by bojerg", g.uiFont, g.screenSize[0]/2, menuTextY, colornames.Whitesmoke)
 
 	default:
 		//play the game
@@ -100,14 +113,26 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 
 		//Draw operation settings & execution
-		sw, sh := screen.Size()
+		uiOp := &ebiten.DrawImageOptions{}
+		boardOp := &ebiten.DrawImageOptions{}
 		bw, bh := g.boardImage.Size()
 
-		uiOp := &ebiten.DrawImageOptions{}
-		uiOpX := (sw - bw) / 2
-		uiOpY := (sh - bh) / 2
+		//factor is used to ensure board fits onto screen nicely at small resolutions
+		factor := g.scaleX
+		if g.scaleX < g.scaleY {
+			factor = g.scaleY
+		}
+		if factor == 0 {
+			factor = 0.01
+		}
+		//store factor in game struct to dynamically change mouse cursor targeting coordinates
+		g.factor = 0.92 / factor
 
-		boardOp := &ebiten.DrawImageOptions{}
+		uiOp.GeoM.Scale(g.factor, g.factor)
+		boardOp.GeoM.Scale(g.factor, g.factor)
+
+		uiOpX := (float64(g.screenSize[0]) - float64(bw)*g.factor) / 2
+		uiOpY := (float64(g.screenSize[1]) - float64(bh)*g.factor) / 2
 		boardOpX := uiOpX
 		boardOpY := uiOpY
 		boardOpRotate := 0.0
@@ -116,12 +141,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if !g.whitesTurn && g.gameType == 1 {
 			boardOpRotate = math.Pi
 			//bring the board back into view after rotating
-			boardOpX += bw
-			boardOpY += bh
+			boardOpX += float64(bw) * g.factor
+			boardOpY += float64(bh) * g.factor
 		}
 
 		boardOp.GeoM.Rotate(boardOpRotate)
-		boardOp.GeoM.Translate(float64(boardOpX), float64(boardOpY))
+		boardOp.GeoM.Translate(boardOpX, boardOpY)
 
 		screen.DrawImage(g.boardImage, boardOp)
 		screen.DrawImage(g.gameImage, boardOp)
@@ -130,7 +155,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		screen.DrawImage(g.movingImage, uiOp)
 
 		if g.gameOver {
-			text.Draw(screen, g.gameOverMsg, g.uiFont, (sw/2)-len(g.gameOverMsg)*12, sh/2+12, colornames.Darkred)
+			text.Draw(screen, g.gameOverMsg, g.uiFont, (g.screenSize[0]/2)-len(g.gameOverMsg)*14, g.screenSize[1]/2+14, colornames.Darkred)
 		}
 	}
 }
@@ -140,17 +165,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 func (g *Game) Update() error {
 	x, y := ebiten.CursorPosition()
 
-	// No way to exit fullscreen without this for now
-	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
-		ebiten.SetFullscreen(false)
-	}
-
 	switch g.gameType {
 	case -1:
 		//at main menu
 
 		//Indicating which controls are hovered over
-		if x > Width/2-90 && x < Width/2+90 && y > Height/2-40 && y < Height/2+40 {
+		if g.mainMenuButtons[0].PosInBounds(x, y) {
 			g.btnHoverIndex = 1
 		} else {
 			g.btnHoverIndex = -1
@@ -179,16 +199,24 @@ func (g *Game) Update() error {
 
 		// XY locations reflect the two buttons drawn on screen
 		// This code block determines what the mouse is interacting with and updates the appropriate parameter
-		if x > TileSize+36 && x < TileSize+216 && y > TileSize*2.5 && y < TileSize*2.5+80 {
+		// Factor is utilized here to match up the scaled down render with our "scaled down" mouse XY coordinates
+		x := int(float64(x) / g.factor)
+		y := int(float64(y) / g.factor)
+
+		edgeX := (float64(g.screenSize[0]) - (1024 * g.factor)) / 2
+		edgeY := (float64(g.screenSize[1]) - (1024 * g.factor)) / 2
+		tile := TileSize * g.factor
+
+		if g.inGameButtons[0].PosInBounds(x, y) {
 			g.btnHoverIndex = 1
-		} else if x > TileSize+36 && x < TileSize+216 && y > TileSize*4.5 && y < TileSize*4.5+80 {
+		} else if g.inGameButtons[1].PosInBounds(x, y) {
 			g.btnHoverIndex = 2
 		} else {
 			g.btnHoverIndex = -1
 			// fancy min max floor math to determine the closest board square to the cursor, even
 			// when the mouse is not over the board
-			g.selectedCol = int(math.Floor(math.Min(math.Max(float64((x-448)/128), 0), 7)))
-			g.selectedRow = int(math.Floor(math.Min(math.Max(float64((y-28)/128), 0), 7)))
+			g.selectedCol = int(math.Floor(math.Min(math.Max(((float64(x)*g.factor)-edgeX)/tile, 0), 7)))
+			g.selectedRow = int(math.Floor(math.Min(math.Max(((float64(y)*g.factor)-edgeY)/tile, 0), 7)))
 
 			// invert selected row and col when the board is rotated
 			if !g.whitesTurn && g.gameType == 1 {
@@ -203,9 +231,14 @@ func (g *Game) Update() error {
 			if g.btnHoverIndex != -1 {
 
 				if g.btnHoverIndex == 1 {
-					//TODO: Return to menu
+					//Return to menu
+					//set game type to menu
+					g.gameType = -1
+
 				} else if g.btnHoverIndex == 2 {
-					//TODO: Start new game of same type
+					//Start new game of same type
+					//reset game variables and images
+					g.InitPiecesAndImages()
 				}
 
 			} else {
@@ -216,12 +249,12 @@ func (g *Game) Update() error {
 					// Match the selected tile to a piece location. Then, ensure the piece belongs to the
 					// team whose turn it currently is, and that it is still in play.
 					for i, piece := range g.pieces {
-						if piece.GetCol() == g.selectedCol && piece.GetRow() == g.selectedRow {
-							if piece.GetCol() != -1 && g.whitesTurn == piece.White() {
+						if piece.Col() == g.selectedCol && piece.Row() == g.selectedRow {
+							if piece.Col() != -1 && g.whitesTurn == piece.White() {
 								g.selectedPiece = i
 								// store the xy coordinates of the cursor
-								g.selectedLocation[0] = float64(x)/1.5 - 30
-								g.selectedLocation[1] = float64(y)/1.5 - 30
+								g.selectedLocation[0] = float64(x)
+								g.selectedLocation[1] = float64(y)
 								g.scheduleDraw = true
 								break
 							}
@@ -230,8 +263,8 @@ func (g *Game) Update() error {
 				} else {
 					// update current mouse position because piece is still selected
 					// and the mouse may be moving!
-					g.selectedLocation[0] = float64(x)/1.5 - 30
-					g.selectedLocation[1] = float64(y)/1.5 - 30
+					g.selectedLocation[0] = float64(x)
+					g.selectedLocation[1] = float64(y)
 				}
 			}
 		} else { // MouseButtonLeft is not pressed
@@ -241,7 +274,7 @@ func (g *Game) Update() error {
 
 				// piece is asking to be let go of at it the current mouse position
 				// Verify the move if the piece is being set down on a different square than it started on
-				if g.pieces[g.selectedPiece].GetCol() != g.selectedCol || g.pieces[g.selectedPiece].GetRow() != g.selectedRow {
+				if g.pieces[g.selectedPiece].Col() != g.selectedCol || g.pieces[g.selectedPiece].Row() != g.selectedRow {
 					g.MakeMoveIfLegal(g.selectedRow, g.selectedCol)
 				}
 
@@ -257,11 +290,11 @@ func (g *Game) Update() error {
 
 // MakeMoveIfLegal handles three things: Checking if a move is legal, removing a taken piece from the
 // game if the move was legal, and handling the switching of turns.
-func (g *Game) MakeMoveIfLegal(row int, col int) {
+func (g *Game) MakeMoveIfLegal(row, col int) {
 	//check if move is legal
 	//first, make sure the tile it's being set on is possible by comparing it to the Piece's GetMoves function
 	//second, don't allow the player to put themselves into check, and see if they are putting their opponent in check
-	possibleMoves := g.pieces[g.selectedPiece].GetMoves(g.pieces)
+	possibleMoves := g.pieces[g.selectedPiece].Moves(*g)
 	legal := false
 
 	for _, move := range possibleMoves {
@@ -274,19 +307,38 @@ func (g *Game) MakeMoveIfLegal(row int, col int) {
 
 	if legal {
 		//we should save the old piece position then set the new position and make sure the move is still legal
-		startingPos := [2]int{g.pieces[g.selectedPiece].GetRow(), g.pieces[g.selectedPiece].GetCol()}
+		startingPos := [2]int{g.pieces[g.selectedPiece].Row(), g.pieces[g.selectedPiece].Col()}
 		g.pieces[g.selectedPiece].SetRow(g.selectedRow)
 		g.pieces[g.selectedPiece].SetCol(g.selectedCol)
+
+		//Is this move an en passant?
+		//modifying which row we search for in the following loop to match piece being taken en passant
+		enPassant := false
+		modifiedRow := row
+		if IsPawn(g.pieces[g.selectedPiece]) {
+
+			if g.pieces[g.selectedPiece].White() && startingPos[0] == 3 {
+				enPassant = g.enPassantLocation[0] == row+1 && g.enPassantLocation[1] == col
+			} else if startingPos[0] == 4 {
+				enPassant = g.enPassantLocation[0] == row-1 && g.enPassantLocation[1] == col
+			}
+
+			if enPassant {
+				modifiedRow = g.enPassantLocation[0]
+				fmt.Println(enPassant)
+			}
+		}
 
 		// If there's a piece on the square we moved to, we need to take it away!
 		var capturedPiece *ChessPiece
 		capturedOldCol := -1
 		for i, piece := range g.pieces {
-			if piece.GetRow() == row && piece.GetCol() == col {
+			if piece.Row() == modifiedRow && piece.Col() == col {
 				if i != g.selectedPiece {
-					capturedOldCol = piece.GetCol()
+					capturedOldCol = piece.Col()
 					piece.SetCol(-1) // Col of -1 is de facto notation for piece taken
 					capturedPiece = &piece
+					fmt.Println(capturedOldCol != -1)
 					break
 				}
 			}
@@ -295,12 +347,12 @@ func (g *Game) MakeMoveIfLegal(row int, col int) {
 		// for each piece on opposing team, does it have possible move to check this player after the move?
 		// reminder, a piece with col of -1 has been taken
 		for _, piece := range g.pieces {
-			if piece.White() != g.whitesTurn && piece.GetCol() != -1 {
+			if piece.White() != g.whitesTurn && piece.Col() != -1 {
 
 				//check possible moves for each valid piece and see if any would check the king
-				for _, move := range piece.GetMoves(g.pieces) {
+				for _, move := range piece.Moves(*g) {
 					otherPiece := GetPieceOnSquare(move[0], move[1], g.pieces)
-					if otherPiece != nil && otherPiece.White() == g.whitesTurn && otherPiece.IsKing() == true {
+					if otherPiece != nil && otherPiece.White() == g.whitesTurn && IsKing(otherPiece) == true {
 						legal = false
 						break
 					}
@@ -326,19 +378,38 @@ func (g *Game) MakeMoveIfLegal(row int, col int) {
 			}
 
 		} else {
+
+			//ugly block of code to facilitate legal en passant moves next turn
+			setEnPassantLoc := false
+			if IsPawn(g.pieces[g.selectedPiece]) {
+				if g.pieces[g.selectedPiece].White() {
+					setEnPassantLoc = startingPos[0] == 6 && g.pieces[g.selectedPiece].Row() == 4
+				} else {
+					setEnPassantLoc = startingPos[0] == 1 && g.pieces[g.selectedPiece].Row() == 3
+				}
+			}
+			if setEnPassantLoc {
+				g.enPassantLocation[0] = g.pieces[g.selectedPiece].Row()
+				g.enPassantLocation[1] = g.pieces[g.selectedPiece].Col()
+			} else {
+				g.enPassantLocation[0] = -1
+				g.enPassantLocation[1] = -1
+			}
+
 			g.inCheck = false
 			g.checkmateNotChecked = true
+			g.moveNum++
 			g.whitesTurn = !g.whitesTurn //switch turns
 
 			//now checking if this move puts the opponent in check
 			//note we switched turns in the logic just before this loop
 			for _, piece := range g.pieces {
-				if piece.White() != g.whitesTurn && piece.GetCol() != -1 {
+				if piece.White() != g.whitesTurn && piece.Col() != -1 {
 
 					//check possible moves for each valid piece and see if any would check the king
-					for _, move := range piece.GetMoves(g.pieces) {
+					for _, move := range piece.Moves(*g) {
 						otherPiece := GetPieceOnSquare(move[0], move[1], g.pieces)
-						if otherPiece != nil && otherPiece.White() == g.whitesTurn && otherPiece.IsKing() == true {
+						if otherPiece != nil && otherPiece.White() == g.whitesTurn && IsKing(otherPiece) == true {
 							g.inCheck = true
 							break
 						}
@@ -354,17 +425,17 @@ func (g *Game) IsCheckmate() {
 	checkmate := true
 	// Try every possible move and see if still in check
 	for _, piece := range g.pieces {
-		if piece.White() == g.whitesTurn && piece.GetCol() != -1 {
+		if piece.White() == g.whitesTurn && piece.Col() != -1 {
 
 			//save the original position so we can put the piece back after checking moves
-			startingPos := [2]int{piece.GetRow(), piece.GetCol()}
+			startingPos := [2]int{piece.Row(), piece.Col()}
 
 			//capturedPiece is a placeholder to save pieces that are taken by potential moves
 			//we should put it back after running our check
 			var capturedPiece *ChessPiece
 			capturedOldCol := -1
 
-			for _, move := range piece.GetMoves(g.pieces) {
+			for _, move := range piece.Moves(*g) {
 
 				//here we simulate each move and see if it gets them out of check
 				//if it does, we put the pieces back and exit the loop, indicating it's not checkmate
@@ -373,7 +444,7 @@ func (g *Game) IsCheckmate() {
 				//simulate move
 				otherPiece := GetPieceOnSquare(move[0], move[1], g.pieces)
 				if otherPiece != nil && otherPiece.White() != g.whitesTurn {
-					capturedOldCol = otherPiece.GetCol()
+					capturedOldCol = otherPiece.Col()
 					otherPiece.SetCol(-1)
 					capturedPiece = &otherPiece
 				}
@@ -383,11 +454,11 @@ func (g *Game) IsCheckmate() {
 				//check if this move still leaves them in check
 				thisMoveInCheck := false
 				for _, nestedPiece := range g.pieces {
-					if nestedPiece.White() != g.whitesTurn && nestedPiece.GetCol() != -1 {
+					if nestedPiece.White() != g.whitesTurn && nestedPiece.Col() != -1 {
 						//check possible moves for each valid piece and see if any would check the king
-						for _, nestedMove := range nestedPiece.GetMoves(g.pieces) {
+						for _, nestedMove := range nestedPiece.Moves(*g) {
 							otherOtherPiece := GetPieceOnSquare(nestedMove[0], nestedMove[1], g.pieces)
-							if otherOtherPiece != nil && otherOtherPiece.White() == g.whitesTurn && otherOtherPiece.IsKing() == true {
+							if otherOtherPiece != nil && otherOtherPiece.White() == g.whitesTurn && IsKing(otherOtherPiece) == true {
 								thisMoveInCheck = true
 								break
 							}
@@ -445,14 +516,14 @@ func (g *Game) DrawStaticPieces() {
 
 	for i, piece := range g.pieces {
 		// Don't draw selected (moving) piece, or any pieces with id of 6 (taken)
-		if i != g.selectedPiece && piece.GetCol() != -1 {
-			tx := float64(g.pieces[i].GetCol()*TileSize) + xOffset
-			ty := float64(g.pieces[i].GetRow()*TileSize) + yOffset
+		if i != g.selectedPiece && piece.Col() != -1 {
+			tx := float64(g.pieces[i].Col()*TileSize) + xOffset
+			ty := float64(g.pieces[i].Row()*TileSize) + yOffset
 			opPiece := &ebiten.DrawImageOptions{}
 			opPiece.GeoM.Rotate(rotate)
 			opPiece.GeoM.Scale(1.5, 1.5) //essentially W x H = 90 x 90
 			opPiece.GeoM.Translate(tx, ty)
-			g.pieceImage.DrawImage(g.pieces[i].GetImage(), opPiece)
+			g.pieceImage.DrawImage(g.pieces[i].Image(), opPiece)
 		}
 	}
 }
@@ -460,12 +531,12 @@ func (g *Game) DrawStaticPieces() {
 func (g *Game) DrawMovingPiece() {
 	for i, _ := range g.pieces {
 		if i == g.selectedPiece {
-			tx := g.selectedLocation[0] * 1.5
-			ty := g.selectedLocation[1] * 1.5
+			tx := g.selectedLocation[0] - 45
+			ty := g.selectedLocation[1] - 45
 			opPiece := &ebiten.DrawImageOptions{}
 			opPiece.GeoM.Scale(1.5, 1.5) //essentially W x H = 90 x 90
 			opPiece.GeoM.Translate(tx, ty)
-			g.movingImage.DrawImage(g.pieces[i].GetImage(), opPiece)
+			g.movingImage.DrawImage(g.pieces[i].Image(), opPiece)
 			break
 		}
 	}
@@ -477,7 +548,7 @@ func (g *Game) DrawHighlightedTiles() {
 
 	// drawing highlighted tiles (available moves in red)
 	if g.selectedPiece >= 0 {
-		availableMoves := g.pieces[g.selectedPiece].GetMoves(g.pieces)
+		availableMoves := g.pieces[g.selectedPiece].Moves(*g)
 		if availableMoves != nil {
 			for _, move := range availableMoves {
 				opTile := &ebiten.DrawImageOptions{}
@@ -507,9 +578,9 @@ func (g *Game) DrawHighlightedTiles() {
 	//highlight a king in check (purple)
 	if g.inCheck {
 		for _, piece := range g.pieces {
-			if piece.IsKing() && piece.White() == g.whitesTurn {
+			if IsKing(piece) && piece.White() == g.whitesTurn {
 				opTile := &ebiten.DrawImageOptions{}
-				opTile.GeoM.Translate(float64(piece.GetCol()*TileSize+448), float64(piece.GetRow()*TileSize+28))
+				opTile.GeoM.Translate(float64(piece.Col()*TileSize+448), float64(piece.Row()*TileSize+28))
 				tileImage.Fill(color.RGBA{R: 0xbf, G: 0x00, B: 0xe6, A: 0xff})
 				g.gameImage.DrawImage(tileImage, opTile)
 				break
@@ -551,7 +622,7 @@ func (g *Game) DrawUI() {
 	var whitePieces []ChessPiece
 	var blackPieces []ChessPiece
 	for _, piece := range g.pieces {
-		if piece.GetCol() == -1 {
+		if piece.Col() == -1 {
 			if piece.White() {
 				whitePieces = append(whitePieces, piece)
 			} else {
@@ -570,18 +641,18 @@ func (g *Game) DrawUI() {
 
 	//The following offsets and modifiers help to dynamically grow the column of taken pieces and flip them
 	//as the board is flipped
-	whiteXOffset := 384
-	blackXOffset := 448 + TileSize*8
-	var whiteYOffset float64 = 28
-	var blackYOffset float64 = TileSize * 8
-	whiteGrowth := -16
-	blackGrowth := 16
+	whiteXOffset := ((float64(g.screenSize[0]) - (TileSize * 8 * g.factor)) / 2) - 60*g.factor
+	blackXOffset := ((float64(g.screenSize[0]) - (TileSize * 8 * g.factor)) / 2) + (TileSize*8+60)*g.factor
+	whiteYOffset := (float64(g.screenSize[1]) - (TileSize * 8 * g.factor)) / 2
+	blackYOffset := TileSize * 8 * g.factor
+	whiteGrowth := -16 * g.factor
+	blackGrowth := 16 * g.factor
 
 	// Rotate the board for local multiplayer (gameType 1)
 	if !g.whitesTurn && g.gameType == 1 {
 		whiteXOffset = blackXOffset
 		whiteYOffset = blackYOffset
-		blackXOffset = 384
+		blackXOffset = ((float64(g.screenSize[0]) - (TileSize * 8 * g.factor)) / 2) - 60*g.factor
 		blackYOffset = 28
 		whiteGrowth *= -1
 		blackGrowth *= -1
@@ -591,34 +662,41 @@ func (g *Game) DrawUI() {
 	for i, p := range whitePieces {
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Scale(0.7, 0.7)
-		op.GeoM.Translate(float64((len(whitePieces)-i)*whiteGrowth+whiteXOffset), whiteYOffset)
-		g.uiImage.DrawImage(p.GetImage(), op)
+		op.GeoM.Translate(float64(len(whitePieces)-i)*whiteGrowth+whiteXOffset, whiteYOffset)
+		g.uiImage.DrawImage(p.Image(), op)
 	}
 
 	for i, p := range blackPieces {
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Scale(0.7, 0.7)
-		op.GeoM.Translate(float64((len(blackPieces)-i)*blackGrowth+blackXOffset), blackYOffset)
-		g.uiImage.DrawImage(p.GetImage(), op)
+		op.GeoM.Translate(float64(len(blackPieces)-i)*blackGrowth+blackXOffset, blackYOffset)
+		g.uiImage.DrawImage(p.Image(), op)
 	}
 
-	opMenuBtn := &ebiten.DrawImageOptions{}
-	opMenuBtn.GeoM.Translate(TileSize+36, TileSize*2.5)
+	btnX := int(float64(g.screenSize[0]) * 0.1)
+	g.inGameButtons[0].x = btnX
+	g.inGameButtons[0].y = int((float64(g.screenSize[1])/g.factor)/2) - BtnHeight - 7
+	g.inGameButtons[1].x = btnX
+	g.inGameButtons[1].y = int((float64(g.screenSize[1])/g.factor)/2) + 7
+
+	opMenuBtn1 := &ebiten.DrawImageOptions{}
+	opMenuBtn1.GeoM.Translate(float64(g.inGameButtons[0].x), float64(g.inGameButtons[0].y))
 	if g.btnHoverIndex == 1 {
-		g.uiImage.DrawImage(g.btnPrimaryHover, opMenuBtn)
-		text.Draw(g.uiImage, "Main Menu", g.uiFontSmall, TileSize+70, TileSize*2.5+50, colornames.Gray)
+		g.uiImage.DrawImage(g.btnPrimaryHover, opMenuBtn1)
+		text.Draw(g.uiImage, g.inGameButtons[0].text, g.uiFontSmall, g.inGameButtons[0].TextX(), g.inGameButtons[0].TextY(), colornames.Gray)
 	} else {
-		g.uiImage.DrawImage(g.btnPrimary, opMenuBtn)
-		text.Draw(g.uiImage, "Main Menu", g.uiFontSmall, TileSize+70, TileSize*2.5+50, colornames.Whitesmoke)
+		g.uiImage.DrawImage(g.btnPrimary, opMenuBtn1)
+		text.Draw(g.uiImage, g.inGameButtons[0].text, g.uiFontSmall, g.inGameButtons[0].TextX(), g.inGameButtons[0].TextY(), colornames.Whitesmoke)
 	}
 
-	opMenuBtn.GeoM.Translate(0, TileSize*2)
+	opMenuBtn2 := &ebiten.DrawImageOptions{}
+	opMenuBtn2.GeoM.Translate(float64(g.inGameButtons[1].x), float64(g.inGameButtons[1].y))
 	if g.btnHoverIndex == 2 {
-		g.uiImage.DrawImage(g.btnInfoHover, opMenuBtn)
-		text.Draw(g.uiImage, "New Game", g.uiFontSmall, TileSize+74, TileSize*4.5+50, colornames.Gray)
+		g.uiImage.DrawImage(g.btnInfoHover, opMenuBtn2)
+		text.Draw(g.uiImage, g.inGameButtons[1].text, g.uiFontSmall, g.inGameButtons[1].TextX(), g.inGameButtons[1].TextY(), colornames.Gray)
 	} else {
-		g.uiImage.DrawImage(g.btnInfo, opMenuBtn)
-		text.Draw(g.uiImage, "New Game", g.uiFontSmall, TileSize+74, TileSize*4.5+50, colornames.Whitesmoke)
+		g.uiImage.DrawImage(g.btnInfo, opMenuBtn2)
+		text.Draw(g.uiImage, g.inGameButtons[1].text, g.uiFontSmall, g.inGameButtons[1].TextX(), g.inGameButtons[1].TextY(), colornames.Whitesmoke)
 	}
 
 }
@@ -646,33 +724,43 @@ func (g *Game) DrawMainMenu(generate bool) {
 				opPiece.GeoM.Scale(1.8, 1.8)
 				opPiece.GeoM.Translate(float64(x*100), float64(y*100))
 				opPiece.ColorM.Translate(0, 0, 0, -.7)
-				g.menuBgImage.DrawImage(g.pieces[(x+y)%10].GetImage(), opPiece)
+				g.menuBgImage.DrawImage(g.pieces[(x+y)%10].Image(), opPiece)
 			}
 		}
 
 	}
 
-	opButton := &ebiten.DrawImageOptions{}
-	opButton.GeoM.Translate(Width/2-90, Height/2-40)
+	g.mainMenuButtons[0].x = g.screenSize[0]/2 - 90
+	g.mainMenuButtons[0].y = g.screenSize[1]/2 + 8
+
+	g.mainMenuButtons[1].x = g.screenSize[0]/2 - 90
+	g.mainMenuButtons[1].y = g.screenSize[1]/2 + 118
+
+	opButton1 := &ebiten.DrawImageOptions{}
+	opButton1.GeoM.Translate(float64(g.mainMenuButtons[0].x), float64(g.mainMenuButtons[0].y))
 	if g.btnHoverIndex == 1 {
-		g.uiImage.DrawImage(g.btnPrimaryHover, opButton)
-		text.Draw(g.uiImage, "Local Match", g.uiFontSmall, Width/2-76, Height/2+8, colornames.Whitesmoke)
+		g.uiImage.DrawImage(g.btnPrimaryHover, opButton1)
+		text.Draw(g.uiImage, g.mainMenuButtons[0].text, g.uiFontSmall, g.mainMenuButtons[0].TextX(), g.mainMenuButtons[0].TextY(), colornames.Whitesmoke)
 	} else {
-		g.uiImage.DrawImage(g.btnPrimary, opButton)
-		text.Draw(g.uiImage, "Local Match", g.uiFontSmall, Width/2-76, Height/2+8, colornames.Gray)
+		g.uiImage.DrawImage(g.btnPrimary, opButton1)
+		text.Draw(g.uiImage, g.mainMenuButtons[0].text, g.uiFontSmall, g.mainMenuButtons[0].TextX(), g.mainMenuButtons[0].TextY(), colornames.Gray)
 	}
 
-	opButton.GeoM.Translate(0, 110)
-	opButton.ColorM.Translate(-.1, -.1, -.1, -.5)
-	g.uiImage.DrawImage(g.btnPrimary, opButton)
-	text.Draw(g.uiImage, "Versus Bot", g.uiFontSmall, Width/2-69, Height/2+118, colornames.Gray)
+	opButton2 := &ebiten.DrawImageOptions{}
+	opButton2.GeoM.Translate(float64(g.mainMenuButtons[1].x), float64(g.mainMenuButtons[1].y))
+	opButton2.ColorM.Translate(-.1, -.1, -.1, -.5) //TODO: remove color fading when feature added
+	g.uiImage.DrawImage(g.btnPrimary, opButton2)
+	text.Draw(g.uiImage, g.mainMenuButtons[1].text, g.uiFontSmall, g.mainMenuButtons[1].TextX(), g.mainMenuButtons[1].TextY(), colornames.Gray)
 
 }
 
 func (g *Game) InitPiecesAndImages() {
+
+	g.moveNum = 0
 	g.selectedPiece = -1
 	g.selectedLocation[0] = 0.0
 	g.selectedLocation[1] = 0.0
+
 	g.pieces[0] = &Rook{Piece{0, 0, false}}
 	g.pieces[1] = &Knight{Piece{1, 0, false}}
 	g.pieces[2] = &Bishop{Piece{2, 0, false}}
@@ -712,6 +800,13 @@ func (g *Game) InitPiecesAndImages() {
 	g.inCheck = false
 	g.whitesTurn = true
 
+	//included for re-initialization of a new game
+	g.gameImage.Clear()
+	g.boardImage.Clear()
+	g.movingImage.Clear()
+	g.pieceImage.Clear()
+	g.uiImage.Clear()
+
 	g.DrawBoard()
 	g.DrawStaticPieces()
 	g.scheduleDraw = false
@@ -723,9 +818,14 @@ func (g *Game) InitGame() {
 	g.boardImage = ebiten.NewImage(Width, Height)
 	g.gameImage = ebiten.NewImage(Width, Height)
 	g.pieceImage = ebiten.NewImage(Width, Height)
-	g.movingImage = ebiten.NewImage(Width, Height)
-	g.uiImage = ebiten.NewImage(Width, Height)
 	g.menuBgImage = ebiten.NewImage(Width, Height)
+
+	//making these larger resolves scaling cut-off issues
+	g.movingImage = ebiten.NewImage(Width*2, Height*2)
+	g.uiImage = ebiten.NewImage(Width*2, Height*2)
+
+	g.screenSize[0] = Width
+	g.screenSize[1] = Height
 
 	//Attempt to load font
 	tt, err := opentype.Parse(fonts.PressStart2P_ttf)
@@ -787,20 +887,57 @@ func (g *Game) InitGame() {
 		log.Fatal(err)
 	}
 
+	var localMatchBtn Button
+	localMatchBtn.fontSize = 14
+	localMatchBtn.text = "Local Match"
+	localMatchBtn.x = Width/2 - 90
+	localMatchBtn.y = Height/2 + 8
+
+	var versusBotBtn Button
+	versusBotBtn.fontSize = 14
+	versusBotBtn.text = "Versus Bot"
+	versusBotBtn.x = Width/2 - 90
+	versusBotBtn.y = Height/2 + 118
+
+	g.mainMenuButtons[0] = localMatchBtn
+	g.mainMenuButtons[1] = versusBotBtn
+
+	var mainMenuButton Button
+	mainMenuButton.x = 200
+	mainMenuButton.y = 370
+	mainMenuButton.text = "Main Menu"
+	mainMenuButton.fontSize = 14
+
+	var newGameButton Button
+	newGameButton.x = 200
+	newGameButton.y = 626
+	newGameButton.text = "New Game"
+	newGameButton.fontSize = 14
+
+	g.inGameButtons[0] = mainMenuButton
+	g.inGameButtons[1] = newGameButton
+
 	g.DrawMainMenu(true)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return Width, Height
+
+	g.scaleX = float64(Width) / float64(outsideWidth)
+	g.scaleY = float64(Height) / float64(outsideHeight)
+
+	return outsideWidth, outsideHeight
 }
 
 func main() {
+	ebiten.SetWindowSize(1280, 720)
+	ebiten.SetWindowTitle("Chess by bojerg")
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+	ebiten.SetWindowSizeLimits(800, 450, 7680, 4320)
+	ebiten.MaximizeWindow()
+
 	game := &Game{}
 	game.InitGame()
-	ebiten.SetWindowSize(Width, Height)
-	ebiten.SetWindowTitle("chess")
-	ebiten.SetFullscreen(true)
-	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}

@@ -6,10 +6,10 @@ type King struct {
 	Piece
 }
 
-// GetMoves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
+// Moves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
 // in an array with a length of two-- Row and Col.
 // TODO castling
-func (p *King) GetMoves(pieces [32]ChessPiece) [][2]int {
+func (p *King) Moves(g Game) [][2]int {
 	moves := make([][2]int, 0)
 
 	possibleMoves := [8][2]int{
@@ -25,7 +25,7 @@ func (p *King) GetMoves(pieces [32]ChessPiece) [][2]int {
 
 	for _, move := range possibleMoves {
 		if IsInBounds(move[0], move[1]) {
-			otherPiece := GetPieceOnSquare(move[0], move[1], pieces)
+			otherPiece := GetPieceOnSquare(move[0], move[1], g.pieces)
 			if otherPiece == nil || otherPiece.White() != p.white {
 				moves = append(moves, [2]int{move[0], move[1]})
 			}
@@ -35,20 +35,15 @@ func (p *King) GetMoves(pieces [32]ChessPiece) [][2]int {
 	return moves
 }
 
-func (p *King) IsKing() bool {
-	return true
-}
-
-// GetName primarily intended for debugging
-func (p *King) GetName() string {
+func (p *King) Name() string {
 	if p.white {
-		return "White pawn"
+		return "White king"
 	} else {
-		return "Black pawn"
+		return "Black king"
 	}
 }
 
-func (p *King) GetImage() *ebiten.Image {
+func (p *King) Image() *ebiten.Image {
 	filepathStr := "images/"
 	if p.white {
 		filepathStr += "whiteKing.png"
@@ -59,11 +54,11 @@ func (p *King) GetImage() *ebiten.Image {
 	return GetImage(filepathStr)
 }
 
-func (p *King) GetCol() int {
+func (p *King) Col() int {
 	return p.col
 }
 
-func (p *King) GetRow() int {
+func (p *King) Row() int {
 	return p.row
 }
 
