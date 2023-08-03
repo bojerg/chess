@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
@@ -68,6 +67,7 @@ const (
 	Height   = 1080
 	TileSize = 128
 	FontDPI  = 72
+	Filter   = ebiten.FilterLinear
 )
 
 // Draw
@@ -75,7 +75,6 @@ const (
 func (g *Game) Draw(screen *ebiten.Image) {
 
 	screen.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
-
 	//store screen size
 	g.screenSize[0], g.screenSize[1] = screen.Size()
 
@@ -86,36 +85,24 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		//Using selectedCol as a counter for infinite scroll of the background
 		g.selectedCol = (g.selectedCol + 1) % 50
 		opMenuBg := &ebiten.DrawImageOptions{}
+		opMenuBg.Filter = Filter
 		opMenuBg.GeoM.Translate(float64(-g.selectedCol*2), float64(-150+g.selectedCol*2))
 		opMenuBg.GeoM.Scale(1.3, 1.3)
 		screen.DrawImage(g.menuBgImage, opMenuBg)
 		screen.DrawImage(g.uiImage, &ebiten.DrawImageOptions{})
 
 		menuTextY := int(float64(g.screenSize[1]) * 0.4)
-		text.Draw(screen, "Chess", g.uiFontBig, g.screenSize[0]/2-190, menuTextY, colornames.White)
+		text.Draw(screen, "Chess", g.uiFontBig, g.screenSize[0]/2-207, menuTextY, colornames.White)
 		text.Draw(screen, "by bojerg", g.uiFont, g.screenSize[0]/2, menuTextY, colornames.Whitesmoke)
 
 	default:
-		//play the game
-		g.movingImage.Clear()
-		g.DrawHighlightedTiles()
-		g.DrawUI()
-
-		if g.selectedPiece != -1 {
-			g.DrawMovingPiece()
-		}
-
-		// if game logic signals that piece locations have changed, then DrawStaticPieces, and...
-		// stop scheduling draw because we updated the static piece image
-		if g.scheduleDraw {
-			g.DrawStaticPieces()
-			g.scheduleDraw = false
-		}
-
 		//Draw operation settings & execution
 		uiOp := &ebiten.DrawImageOptions{}
 		boardOp := &ebiten.DrawImageOptions{}
 		bw, bh := g.boardImage.Size()
+
+		uiOp.Filter = Filter
+		boardOp.Filter = Filter
 
 		//factor is used to ensure board fits onto screen nicely at small resolutions
 		factor := g.scaleX
@@ -147,6 +134,21 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		boardOp.GeoM.Rotate(boardOpRotate)
 		boardOp.GeoM.Translate(boardOpX, boardOpY)
+
+		g.movingImage.Clear()
+		g.DrawHighlightedTiles()
+		g.DrawUI()
+
+		if g.selectedPiece != -1 {
+			g.DrawMovingPiece()
+		}
+
+		// if game logic signals that piece locations have changed, then DrawStaticPieces, and...
+		// stop scheduling draw because we updated the static piece image
+		if g.scheduleDraw {
+			g.DrawStaticPieces()
+			g.scheduleDraw = false
+		}
 
 		screen.DrawImage(g.boardImage, boardOp)
 		screen.DrawImage(g.gameImage, boardOp)
@@ -325,7 +327,6 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 
 			if enPassant {
 				modifiedRow = g.enPassantLocation[0]
-				fmt.Println(enPassant)
 			}
 		}
 
@@ -338,7 +339,6 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 					capturedOldCol = piece.Col()
 					piece.SetCol(-1) // Col of -1 is de facto notation for piece taken
 					capturedPiece = &piece
-					fmt.Println(capturedOldCol != -1)
 					break
 				}
 			}
@@ -523,6 +523,7 @@ func (g *Game) DrawStaticPieces() {
 			opPiece.GeoM.Rotate(rotate)
 			opPiece.GeoM.Scale(1.5, 1.5) //essentially W x H = 90 x 90
 			opPiece.GeoM.Translate(tx, ty)
+			opPiece.Filter = Filter
 			g.pieceImage.DrawImage(g.pieces[i].Image(), opPiece)
 		}
 	}
@@ -536,6 +537,7 @@ func (g *Game) DrawMovingPiece() {
 			opPiece := &ebiten.DrawImageOptions{}
 			opPiece.GeoM.Scale(1.5, 1.5) //essentially W x H = 90 x 90
 			opPiece.GeoM.Translate(tx, ty)
+			opPiece.Filter = Filter
 			g.movingImage.DrawImage(g.pieces[i].Image(), opPiece)
 			break
 		}
@@ -641,19 +643,28 @@ func (g *Game) DrawUI() {
 
 	//The following offsets and modifiers help to dynamically grow the column of taken pieces and flip them
 	//as the board is flipped
-	whiteXOffset := ((float64(g.screenSize[0]) - (TileSize * 8 * g.factor)) / 2) - 60*g.factor
-	blackXOffset := ((float64(g.screenSize[0]) - (TileSize * 8 * g.factor)) / 2) + (TileSize*8+60)*g.factor
-	whiteYOffset := (float64(g.screenSize[1]) - (TileSize * 8 * g.factor)) / 2
-	blackYOffset := TileSize * 8 * g.factor
-	whiteGrowth := -16 * g.factor
-	blackGrowth := 16 * g.factor
+	boardSize := 1024 * g.factor
+	offset := 60 * g.factor
+	whiteXOffset := ((float64(g.screenSize[0]) - boardSize) / 2) - offset
+	blackXOffset := ((float64(g.screenSize[0]) - boardSize) / 2) + boardSize + offset
+	whiteYOffset := ((float64(g.screenSize[1]) - boardSize) / 2) + offset
+	blackYOffset := ((float64(g.screenSize[1]) - boardSize) / 2) + boardSize - offset
+	whiteGrowth := -24.0
+	blackGrowth := 24.0
+
+	whiteXOffset *= 1 / g.factor
+	whiteYOffset *= 1 / g.factor
+	blackXOffset *= 1 / g.factor
+	blackYOffset *= 1 / g.factor
 
 	// Rotate the board for local multiplayer (gameType 1)
 	if !g.whitesTurn && g.gameType == 1 {
+		tmpX := whiteXOffset
+		tmpY := whiteYOffset
 		whiteXOffset = blackXOffset
 		whiteYOffset = blackYOffset
-		blackXOffset = ((float64(g.screenSize[0]) - (TileSize * 8 * g.factor)) / 2) - 60*g.factor
-		blackYOffset = 28
+		blackXOffset = tmpX
+		blackYOffset = tmpY
 		whiteGrowth *= -1
 		blackGrowth *= -1
 	}
@@ -661,15 +672,15 @@ func (g *Game) DrawUI() {
 	//Draw the lists of taken piece images
 	for i, p := range whitePieces {
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Scale(0.7, 0.7)
 		op.GeoM.Translate(float64(len(whitePieces)-i)*whiteGrowth+whiteXOffset, whiteYOffset)
+		op.Filter = Filter
 		g.uiImage.DrawImage(p.Image(), op)
 	}
-
+	//
 	for i, p := range blackPieces {
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Scale(0.7, 0.7)
 		op.GeoM.Translate(float64(len(blackPieces)-i)*blackGrowth+blackXOffset, blackYOffset)
+		op.Filter = Filter
 		g.uiImage.DrawImage(p.Image(), op)
 	}
 
@@ -681,6 +692,7 @@ func (g *Game) DrawUI() {
 
 	opMenuBtn1 := &ebiten.DrawImageOptions{}
 	opMenuBtn1.GeoM.Translate(float64(g.inGameButtons[0].x), float64(g.inGameButtons[0].y))
+	opMenuBtn1.Filter = Filter
 	if g.btnHoverIndex == 1 {
 		g.uiImage.DrawImage(g.btnPrimaryHover, opMenuBtn1)
 		text.Draw(g.uiImage, g.inGameButtons[0].text, g.uiFontSmall, g.inGameButtons[0].TextX(), g.inGameButtons[0].TextY(), colornames.Gray)
@@ -691,6 +703,7 @@ func (g *Game) DrawUI() {
 
 	opMenuBtn2 := &ebiten.DrawImageOptions{}
 	opMenuBtn2.GeoM.Translate(float64(g.inGameButtons[1].x), float64(g.inGameButtons[1].y))
+	opMenuBtn2.Filter = Filter
 	if g.btnHoverIndex == 2 {
 		g.uiImage.DrawImage(g.btnInfoHover, opMenuBtn2)
 		text.Draw(g.uiImage, g.inGameButtons[1].text, g.uiFontSmall, g.inGameButtons[1].TextX(), g.inGameButtons[1].TextY(), colornames.Gray)
@@ -834,7 +847,7 @@ func (g *Game) InitGame() {
 	}
 
 	g.uiFontBig, err = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    34,
+		Size:    38,
 		DPI:     FontDPI,
 		Hinting: font.HintingVertical,
 	})
@@ -843,7 +856,7 @@ func (g *Game) InitGame() {
 	}
 
 	g.uiFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    24,
+		Size:    28,
 		DPI:     FontDPI,
 		Hinting: font.HintingVertical,
 	})
@@ -852,7 +865,7 @@ func (g *Game) InitGame() {
 	}
 
 	g.uiFontSmall, err = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    14,
+		Size:    15,
 		DPI:     FontDPI,
 		Hinting: font.HintingVertical,
 	})
@@ -888,13 +901,13 @@ func (g *Game) InitGame() {
 	}
 
 	var localMatchBtn Button
-	localMatchBtn.fontSize = 14
+	localMatchBtn.fontSize = 15
 	localMatchBtn.text = "Local Match"
 	localMatchBtn.x = Width/2 - 90
 	localMatchBtn.y = Height/2 + 8
 
 	var versusBotBtn Button
-	versusBotBtn.fontSize = 14
+	versusBotBtn.fontSize = 15
 	versusBotBtn.text = "Versus Bot"
 	versusBotBtn.x = Width/2 - 90
 	versusBotBtn.y = Height/2 + 118
@@ -906,13 +919,13 @@ func (g *Game) InitGame() {
 	mainMenuButton.x = 200
 	mainMenuButton.y = 370
 	mainMenuButton.text = "Main Menu"
-	mainMenuButton.fontSize = 14
+	mainMenuButton.fontSize = 15
 
 	var newGameButton Button
 	newGameButton.x = 200
 	newGameButton.y = 626
 	newGameButton.text = "New Game"
-	newGameButton.fontSize = 14
+	newGameButton.fontSize = 15
 
 	g.inGameButtons[0] = mainMenuButton
 	g.inGameButtons[1] = newGameButton
