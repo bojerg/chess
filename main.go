@@ -44,6 +44,8 @@ type Game struct {
 	selectedRow         int
 	moveNum             int
 	enPassantLocation   [2]int
+	whiteCastles        [2]bool
+	blackCastles        [2]bool
 	gameOver            bool
 	gameOverMsg         string
 	uiFontBig           font.Face
@@ -313,35 +315,92 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 		g.pieces[g.selectedPiece].SetRow(g.selectedRow)
 		g.pieces[g.selectedPiece].SetCol(g.selectedCol)
 
-		//Is this move an en passant?
-		//modifying which row we search for in the following loop to match piece being taken en passant
-		enPassant := false
-		modifiedRow := row
-		if IsPawn(g.pieces[g.selectedPiece]) {
+		//determining castle move
+		isCastle := false
+		//need to also move the rook if this is a castle move
+		var castleRookIndex int
+		var castleRookStartPos [2]int
+		//piece.Moves() already determined that this move was legal checking prior piece moves, but we need to check
+		//the other special rules that dictate legal castle moves. See https://www.chess.com/article/view/how-to-castle-in-chess
+		if IsKing(g.pieces[g.selectedPiece]) {
 
-			if g.pieces[g.selectedPiece].White() && startingPos[0] == 3 {
-				enPassant = g.enPassantLocation[0] == row+1 && g.enPassantLocation[1] == col
-			} else if startingPos[0] == 4 {
-				enPassant = g.enPassantLocation[0] == row-1 && g.enPassantLocation[1] == col
-			}
-
-			if enPassant {
-				modifiedRow = g.enPassantLocation[0]
+			//A legal king move of more than one space can only be a castle move
+			moveDistance := startingPos[1] - g.pieces[g.selectedPiece].Col()
+			isCastle = moveDistance == -2 || moveDistance == 2
+			var rookLoc [2]int
+			if isCastle {
+				if moveDistance == 2 {
+					//queen side castle
+					if g.whitesTurn {
+						//rook 7,0
+						rookLoc[0] = 7
+						rookLoc[1] = 0
+					} else {
+						//rook 0,0
+						rookLoc[0] = 0
+						rookLoc[1] = 0
+					}
+				} else if moveDistance == -2 {
+					//king side castle
+					if g.whitesTurn {
+						//rook 7,7
+						rookLoc[0] = 7
+						rookLoc[1] = 7
+					} else {
+						//rook 0,7
+						rookLoc[0] = 0
+						rookLoc[1] = 7
+					}
+				}
+				for i, p := range g.pieces {
+					if p.White() == g.whitesTurn && p.Row() == rookLoc[0] && p.Col() == rookLoc[1] {
+						castleRookIndex = i
+						break
+					}
+				}
 			}
 		}
 
-		// If there's a piece on the square we moved to, we need to take it away!
+		//Need these in scope for later code block. Used to store... you guessed it!
 		var capturedPiece *ChessPiece
 		capturedOldCol := -1
-		for i, piece := range g.pieces {
-			if piece.Row() == modifiedRow && piece.Col() == col {
-				if i != g.selectedPiece {
-					capturedOldCol = piece.Col()
-					piece.SetCol(-1) // Col of -1 is de facto notation for piece taken
-					capturedPiece = &piece
-					break
+
+		//normal procedure to prepare to simulate non-castle moves
+		if !isCastle {
+			//Is this move an en passant?
+			//modifying which row we search for in the following loop to match piece being taken en passant
+			enPassant := false
+			modifiedRow := row
+			if IsPawn(g.pieces[g.selectedPiece]) {
+
+				if g.pieces[g.selectedPiece].White() && startingPos[0] == 3 {
+					enPassant = g.enPassantLocation[0] == row+1 && g.enPassantLocation[1] == col
+				} else if startingPos[0] == 4 {
+					enPassant = g.enPassantLocation[0] == row-1 && g.enPassantLocation[1] == col
+				}
+
+				if enPassant {
+					modifiedRow = g.enPassantLocation[0]
 				}
 			}
+
+			// If there's a piece on the square we moved to, we need to take it away!
+			for i, piece := range g.pieces {
+				//modifiedRow is to allow EN PASSANT see above code block/s
+				if piece.Row() == modifiedRow && piece.Col() == col {
+					if i != g.selectedPiece {
+						capturedOldCol = piece.Col()
+						piece.SetCol(-1) // Col of -1 is de facto notation for piece taken
+						capturedPiece = &piece
+						break
+					}
+				}
+			}
+		} else {
+			//CASTLE
+			//TODO:Making sure the king does not pass through check, and move the rook
+			//var castleRookIndex int
+			//var castleRookStartPos [2]int
 		}
 
 		// for each piece on opposing team, does it have possible move to check this player after the move?
@@ -365,8 +424,8 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 			}
 		}
 
-		//using same variable for the condition, yuck! Not going to change it tho :P
-		//look a few lines up if this is confusing
+		//Here, we have finished our move evaluation. Either put it back and allow player to try to play a legal move,
+		//or let the legal move play and switch teams, etc.
 		if !legal {
 			//put the piece back
 			g.pieces[g.selectedPiece].SetRow(startingPos[0])
@@ -380,15 +439,15 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 		} else {
 
 			//ugly block of code to facilitate legal en passant moves next turn
-			setEnPassantLoc := false
+			ThisPawnCanBeEnPassant := false
 			if IsPawn(g.pieces[g.selectedPiece]) {
 				if g.pieces[g.selectedPiece].White() {
-					setEnPassantLoc = startingPos[0] == 6 && g.pieces[g.selectedPiece].Row() == 4
+					ThisPawnCanBeEnPassant = startingPos[0] == 6 && g.pieces[g.selectedPiece].Row() == 4
 				} else {
-					setEnPassantLoc = startingPos[0] == 1 && g.pieces[g.selectedPiece].Row() == 3
+					ThisPawnCanBeEnPassant = startingPos[0] == 1 && g.pieces[g.selectedPiece].Row() == 3
 				}
 			}
-			if setEnPassantLoc {
+			if ThisPawnCanBeEnPassant {
 				g.enPassantLocation[0] = g.pieces[g.selectedPiece].Row()
 				g.enPassantLocation[1] = g.pieces[g.selectedPiece].Col()
 			} else {
@@ -400,6 +459,35 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 			g.checkmateNotChecked = true
 			g.moveNum++
 			g.whitesTurn = !g.whitesTurn //switch turns
+
+			//if king moved, remove right to any castle moves
+			//if rook moved, remove it's right to be a part of a castle
+			if IsKing(g.pieces[g.selectedPiece]) {
+				if g.pieces[g.selectedPiece].White() {
+					g.whiteCastles[0] = false
+					g.whiteCastles[1] = false
+				} else {
+					g.blackCastles[0] = false
+					g.blackCastles[1] = false
+				}
+			} else if IsRook(g.pieces[g.selectedPiece]) {
+				if g.pieces[g.selectedPiece].White() {
+					//ensure this castle was available, and our piece was still on starting tile
+					if g.whiteCastles[0] && startingPos[0] == 7 && startingPos[1] == 0 {
+						g.whiteCastles[0] = false
+					} else if g.whiteCastles[1] && startingPos[0] == 7 && startingPos[1] == 7 {
+						g.whiteCastles[1] = false
+					}
+
+				} else { //piece.White() > false
+					//ensure this castle was available, and our piece was still on starting tile
+					if g.blackCastles[0] && startingPos[0] == 0 && startingPos[1] == 0 {
+						g.blackCastles[0] = false
+					} else if g.blackCastles[1] && startingPos[0] == 0 && startingPos[1] == 7 {
+						g.blackCastles[1] = false
+					}
+				}
+			}
 
 			//now checking if this move puts the opponent in check
 			//note we switched turns in the logic just before this loop
@@ -807,6 +895,12 @@ func (g *Game) InitPiecesAndImages() {
 	g.pieces[30] = &Knight{Piece{6, 7, true}}
 	g.pieces[31] = &Rook{Piece{7, 7, true}}
 
+	//signifies if castle is available for either rook, both go false if king moves
+	g.whiteCastles[0] = true
+	g.whiteCastles[1] = true
+	g.blackCastles[0] = true
+	g.blackCastles[1] = true
+
 	g.checkmateNotChecked = true
 	g.gameOver = false
 	g.gameOverMsg = ""
@@ -946,11 +1040,8 @@ func main() {
 	ebiten.SetWindowTitle("Chess by bojerg")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.SetWindowSizeLimits(800, 450, 7680, 4320)
-	ebiten.MaximizeWindow()
-
 	game := &Game{}
 	game.InitGame()
-
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}

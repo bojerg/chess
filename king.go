@@ -8,7 +8,7 @@ type King struct {
 
 // Moves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
 // in an array with a length of two-- Row and Col.
-// TODO castling
+// TODO: Castle -- make sure the guy ain't in check while you're at it Joey
 func (p *King) Moves(g Game) [][2]int {
 	moves := make([][2]int, 0)
 

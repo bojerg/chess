@@ -13,8 +13,8 @@ import (
 // col, row: identifies location on chess board.
 // white: If on team white, is true.
 type Piece struct {
-	col   int
 	row   int
+	col   int
 	white bool
 }
 
@@ -52,6 +52,10 @@ func IsPawn(piece ChessPiece) bool {
 
 func IsKing(piece ChessPiece) bool {
 	return piece.Name()[6:] == "king"
+}
+
+func IsRook(piece ChessPiece) bool {
+	return piece.Name()[6:] == "rook"
 }
 
 func IsInBounds(row int, col int) bool {
