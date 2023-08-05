@@ -6,7 +6,6 @@ import (
 	_ "image/png" // required for ebitenutil/NewImageFromFile
 	"log"
 	"path/filepath"
-	"strings"
 )
 
 // Piece
@@ -14,8 +13,8 @@ import (
 // col, row: identifies location on chess board.
 // white: If on team white, is true.
 type Piece struct {
-	col   int
 	row   int
+	col   int
 	white bool
 }
 
@@ -55,6 +54,10 @@ func IsKing(piece ChessPiece) bool {
 	return piece.Name()[6:] == "king"
 }
 
+func IsRook(piece ChessPiece) bool {
+	return piece.Name()[6:] == "rook"
+}
+
 func IsInBounds(row int, col int) bool {
 	return row <= 7 && row >= 0 && col <= 7 && col >= 0
 }
@@ -71,10 +74,9 @@ func GetPieceOnSquare(row int, col int, pieces [32]ChessPiece) ChessPiece {
 }
 
 // GetWeighting is implemented so that we can sort pieces by value for UI purposes
-//
-//	Splitting the name after the space to get the piece type  ex. GetName() = "White pawn"
 func GetWeighting(piece ChessPiece) int {
-	switch strings.Split(piece.Name(), " ")[1] {
+	//	ex. piece.Name() >> "White pawn"
+	switch piece.Name()[6:] {
 	case "pawn":
 		return 1
 	case "knight":

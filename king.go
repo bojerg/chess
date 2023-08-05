@@ -8,7 +8,6 @@ type King struct {
 
 // Moves returns a slice of all valid moves for given Piece. Each valid move in the slice is stored
 // in an array with a length of two-- Row and Col.
-// TODO castling
 func (p *King) Moves(g Game) [][2]int {
 	moves := make([][2]int, 0)
 
@@ -28,6 +27,75 @@ func (p *King) Moves(g Game) [][2]int {
 			otherPiece := GetPieceOnSquare(move[0], move[1], g.pieces)
 			if otherPiece == nil || otherPiece.White() != p.white {
 				moves = append(moves, [2]int{move[0], move[1]})
+			}
+		}
+	}
+
+	//evaluate castle moves
+	//here, we only worry if we are in check, if previous moves invalidated castling (rook/king cant have moved),
+	//and if there are any pieces blocking the move. Additional constraints evaluated by MakeMoveIfLegal
+	if !g.inCheck {
+		if p.white {
+			if g.whiteCastles[0] {
+				//rook at 7,0
+				//check all positions between for pieces
+				legal := true
+				for checkCol := 1; checkCol < 4; checkCol++ {
+					if GetPieceOnSquare(p.row, checkCol, g.pieces) != nil {
+						legal = false
+						break
+					}
+				}
+				//add appropriate king move to slice
+				if legal {
+					moves = append(moves, [2]int{p.row, p.col - 2})
+				}
+			}
+			if g.whiteCastles[1] {
+				//rook at 7,7
+				//check all positions between for pieces
+				legal := true
+				for checkCol := 6; checkCol > 4; checkCol-- {
+					if GetPieceOnSquare(p.row, checkCol, g.pieces) != nil {
+						legal = false
+						break
+					}
+				}
+				//add appropriate king move to slice
+				if legal {
+					moves = append(moves, [2]int{p.row, p.col + 2})
+				}
+			}
+		} else {
+			if g.blackCastles[0] {
+				//rook at 0,0
+				//check all positions between for pieces
+				legal := true
+				for checkCol := 1; checkCol < 4; checkCol++ {
+					if GetPieceOnSquare(p.row, checkCol, g.pieces) != nil {
+						legal = false
+						break
+					}
+				}
+				//add appropriate king move to slice
+				if legal {
+					moves = append(moves, [2]int{p.row, p.col - 2})
+				}
+			}
+			if g.blackCastles[1] {
+				//rook at 0,7
+				//check all positions between for pieces
+				legal := true
+				for checkCol := 6; checkCol > 4; checkCol-- {
+					if GetPieceOnSquare(p.row, checkCol, g.pieces) != nil {
+						legal = false
+						break
+					}
+				}
+				//add appropriate king move to slice
+				if legal {
+					moves = append(moves, [2]int{p.row, p.col + 2})
+				}
 			}
 		}
 	}

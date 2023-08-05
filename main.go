@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
@@ -45,6 +44,8 @@ type Game struct {
 	selectedRow         int
 	moveNum             int
 	enPassantLocation   [2]int
+	whiteCastles        [2]bool
+	blackCastles        [2]bool
 	gameOver            bool
 	gameOverMsg         string
 	uiFontBig           font.Face
@@ -68,6 +69,7 @@ const (
 	Height   = 1080
 	TileSize = 128
 	FontDPI  = 72
+	Filter   = ebiten.FilterLinear
 )
 
 // Draw
@@ -75,7 +77,6 @@ const (
 func (g *Game) Draw(screen *ebiten.Image) {
 
 	screen.Fill(color.RGBA{R: 0x13, G: 0x33, B: 0x31, A: 0xff})
-
 	//store screen size
 	g.screenSize[0], g.screenSize[1] = screen.Size()
 
@@ -86,36 +87,24 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		//Using selectedCol as a counter for infinite scroll of the background
 		g.selectedCol = (g.selectedCol + 1) % 50
 		opMenuBg := &ebiten.DrawImageOptions{}
+		opMenuBg.Filter = Filter
 		opMenuBg.GeoM.Translate(float64(-g.selectedCol*2), float64(-150+g.selectedCol*2))
 		opMenuBg.GeoM.Scale(1.3, 1.3)
 		screen.DrawImage(g.menuBgImage, opMenuBg)
 		screen.DrawImage(g.uiImage, &ebiten.DrawImageOptions{})
 
 		menuTextY := int(float64(g.screenSize[1]) * 0.4)
-		text.Draw(screen, "Chess", g.uiFontBig, g.screenSize[0]/2-190, menuTextY, colornames.White)
+		text.Draw(screen, "Chess", g.uiFontBig, g.screenSize[0]/2-207, menuTextY, colornames.White)
 		text.Draw(screen, "by bojerg", g.uiFont, g.screenSize[0]/2, menuTextY, colornames.Whitesmoke)
 
 	default:
-		//play the game
-		g.movingImage.Clear()
-		g.DrawHighlightedTiles()
-		g.DrawUI()
-
-		if g.selectedPiece != -1 {
-			g.DrawMovingPiece()
-		}
-
-		// if game logic signals that piece locations have changed, then DrawStaticPieces, and...
-		// stop scheduling draw because we updated the static piece image
-		if g.scheduleDraw {
-			g.DrawStaticPieces()
-			g.scheduleDraw = false
-		}
-
 		//Draw operation settings & execution
 		uiOp := &ebiten.DrawImageOptions{}
 		boardOp := &ebiten.DrawImageOptions{}
 		bw, bh := g.boardImage.Size()
+
+		uiOp.Filter = Filter
+		boardOp.Filter = Filter
 
 		//factor is used to ensure board fits onto screen nicely at small resolutions
 		factor := g.scaleX
@@ -147,6 +136,21 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 		boardOp.GeoM.Rotate(boardOpRotate)
 		boardOp.GeoM.Translate(boardOpX, boardOpY)
+
+		g.movingImage.Clear()
+		g.DrawHighlightedTiles()
+		g.DrawUI()
+
+		if g.selectedPiece != -1 {
+			g.DrawMovingPiece()
+		}
+
+		// if game logic signals that piece locations have changed, then DrawStaticPieces, and...
+		// stop scheduling draw because we updated the static piece image
+		if g.scheduleDraw {
+			g.DrawStaticPieces()
+			g.scheduleDraw = false
+		}
 
 		screen.DrawImage(g.boardImage, boardOp)
 		screen.DrawImage(g.gameImage, boardOp)
@@ -311,37 +315,120 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 		g.pieces[g.selectedPiece].SetRow(g.selectedRow)
 		g.pieces[g.selectedPiece].SetCol(g.selectedCol)
 
-		//Is this move an en passant?
-		//modifying which row we search for in the following loop to match piece being taken en passant
-		enPassant := false
-		modifiedRow := row
-		if IsPawn(g.pieces[g.selectedPiece]) {
+		//determining castle move
+		isCastle := false
+		//need to also move the rook if this is a castle move
+		var castleRookIndex int
+		var castleRookStartPos [2]int
+		//piece.Moves() already determined that this move was legal checking prior piece moves, but we need to check
+		//the other special rules that dictate legal castle moves. See https://www.chess.com/article/view/how-to-castle-in-chess
+		if IsKing(g.pieces[g.selectedPiece]) {
 
-			if g.pieces[g.selectedPiece].White() && startingPos[0] == 3 {
-				enPassant = g.enPassantLocation[0] == row+1 && g.enPassantLocation[1] == col
-			} else if startingPos[0] == 4 {
-				enPassant = g.enPassantLocation[0] == row-1 && g.enPassantLocation[1] == col
-			}
-
-			if enPassant {
-				modifiedRow = g.enPassantLocation[0]
-				fmt.Println(enPassant)
+			//A legal king move of more than one space can only be a castle move
+			moveDistance := startingPos[1] - g.pieces[g.selectedPiece].Col()
+			isCastle = moveDistance == -2 || moveDistance == 2
+			if isCastle {
+				if moveDistance == 2 {
+					//queen side castle
+					if g.whitesTurn {
+						//rook 7,0
+						castleRookStartPos[0] = 7
+						castleRookStartPos[1] = 0
+					} else {
+						//rook 0,0
+						castleRookStartPos[0] = 0
+						castleRookStartPos[1] = 0
+					}
+				} else if moveDistance == -2 {
+					//king side castle
+					if g.whitesTurn {
+						//rook 7,7
+						castleRookStartPos[0] = 7
+						castleRookStartPos[1] = 7
+					} else {
+						//rook 0,7
+						castleRookStartPos[0] = 0
+						castleRookStartPos[1] = 7
+					}
+				}
+				for i, p := range g.pieces {
+					if p.White() == g.whitesTurn && p.Row() == castleRookStartPos[0] && p.Col() == castleRookStartPos[1] {
+						castleRookIndex = i
+						break
+					}
+				}
 			}
 		}
 
-		// If there's a piece on the square we moved to, we need to take it away!
+		//Need these in scope for later code block. Used to store... you guessed it!
 		var capturedPiece *ChessPiece
 		capturedOldCol := -1
-		for i, piece := range g.pieces {
-			if piece.Row() == modifiedRow && piece.Col() == col {
-				if i != g.selectedPiece {
-					capturedOldCol = piece.Col()
-					piece.SetCol(-1) // Col of -1 is de facto notation for piece taken
-					capturedPiece = &piece
-					fmt.Println(capturedOldCol != -1)
+
+		//normal procedure to prepare to simulate non-castle moves
+		if !isCastle {
+			//Is this move an en passant?
+			//modifying which row we search for in the following loop to match piece being taken en passant
+			enPassant := false
+			modifiedRow := row
+			if IsPawn(g.pieces[g.selectedPiece]) {
+
+				if g.pieces[g.selectedPiece].White() && startingPos[0] == 3 {
+					enPassant = g.enPassantLocation[0] == row+1 && g.enPassantLocation[1] == col
+				} else if startingPos[0] == 4 {
+					enPassant = g.enPassantLocation[0] == row-1 && g.enPassantLocation[1] == col
+				}
+
+				if enPassant {
+					modifiedRow = g.enPassantLocation[0]
+				}
+			}
+
+			// If there's a piece on the square we moved to, we need to take it away!
+			for i, piece := range g.pieces {
+				//modifiedRow is to allow EN PASSANT see above code block/s
+				if piece.Row() == modifiedRow && piece.Col() == col {
+					if i != g.selectedPiece {
+						capturedOldCol = piece.Col()
+						piece.SetCol(-1) // Col of -1 is de facto notation for piece taken
+						capturedPiece = &piece
+						break
+					}
+				}
+			}
+		} else { //CASTLE
+
+			//ensure king does not pass through check
+			skippedSpaceDir := -1
+			if castleRookStartPos[1] == 0 {
+				skippedSpaceDir = 1
+			}
+
+			//move king to appropriate "skipped space"
+			g.pieces[g.selectedPiece].SetCol(g.pieces[g.selectedPiece].Col() + skippedSpaceDir)
+
+			// for each piece on opposing team, does it have possible move to check this player after the move?
+			// reminder, a piece with col of -1 has been taken
+			for _, piece := range g.pieces {
+				if piece.White() != g.whitesTurn && piece.Col() != -1 {
+
+					//check possible moves for each valid piece and see if any would check the king
+					for _, move := range piece.Moves(*g) {
+						otherPiece := GetPieceOnSquare(move[0], move[1], g.pieces)
+						if otherPiece != nil && otherPiece.White() == g.whitesTurn && IsKing(otherPiece) == true {
+							legal = false
+							break
+						}
+					}
+				}
+				if !legal {
 					break
 				}
 			}
+
+			//move king back to it's ending location and move the rook appropriately
+			g.pieces[g.selectedPiece].SetCol(g.pieces[g.selectedPiece].Col() - skippedSpaceDir)
+			g.pieces[castleRookIndex].SetCol(g.pieces[g.selectedPiece].Col() + skippedSpaceDir)
+
 		}
 
 		// for each piece on opposing team, does it have possible move to check this player after the move?
@@ -365,8 +452,8 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 			}
 		}
 
-		//using same variable for the condition, yuck! Not going to change it tho :P
-		//look a few lines up if this is confusing
+		//Here, we have finished our move evaluation. Either put it back and allow player to try another move,
+		//or let the legal move play and switch teams, etc.
 		if !legal {
 			//put the piece back
 			g.pieces[g.selectedPiece].SetRow(startingPos[0])
@@ -377,18 +464,23 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 				(*capturedPiece).SetCol(capturedOldCol)
 			}
 
+			if isCastle {
+				g.pieces[castleRookIndex].SetRow(castleRookStartPos[0])
+				g.pieces[castleRookIndex].SetCol(castleRookStartPos[1])
+			}
+
 		} else {
 
 			//ugly block of code to facilitate legal en passant moves next turn
-			setEnPassantLoc := false
+			ThisPawnCanBeEnPassant := false
 			if IsPawn(g.pieces[g.selectedPiece]) {
 				if g.pieces[g.selectedPiece].White() {
-					setEnPassantLoc = startingPos[0] == 6 && g.pieces[g.selectedPiece].Row() == 4
+					ThisPawnCanBeEnPassant = startingPos[0] == 6 && g.pieces[g.selectedPiece].Row() == 4
 				} else {
-					setEnPassantLoc = startingPos[0] == 1 && g.pieces[g.selectedPiece].Row() == 3
+					ThisPawnCanBeEnPassant = startingPos[0] == 1 && g.pieces[g.selectedPiece].Row() == 3
 				}
 			}
-			if setEnPassantLoc {
+			if ThisPawnCanBeEnPassant {
 				g.enPassantLocation[0] = g.pieces[g.selectedPiece].Row()
 				g.enPassantLocation[1] = g.pieces[g.selectedPiece].Col()
 			} else {
@@ -400,6 +492,35 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 			g.checkmateNotChecked = true
 			g.moveNum++
 			g.whitesTurn = !g.whitesTurn //switch turns
+
+			//if king moved, remove right to any castle moves
+			//if rook moved, remove it's right to be a part of a castle
+			if IsKing(g.pieces[g.selectedPiece]) {
+				if g.pieces[g.selectedPiece].White() {
+					g.whiteCastles[0] = false
+					g.whiteCastles[1] = false
+				} else {
+					g.blackCastles[0] = false
+					g.blackCastles[1] = false
+				}
+			} else if IsRook(g.pieces[g.selectedPiece]) {
+				if g.pieces[g.selectedPiece].White() {
+					//ensure this castle was available, and our piece was still on starting tile
+					if g.whiteCastles[0] && startingPos[0] == 7 && startingPos[1] == 0 {
+						g.whiteCastles[0] = false
+					} else if g.whiteCastles[1] && startingPos[0] == 7 && startingPos[1] == 7 {
+						g.whiteCastles[1] = false
+					}
+
+				} else { //piece.White() > false
+					//ensure this castle was available, and our piece was still on starting tile
+					if g.blackCastles[0] && startingPos[0] == 0 && startingPos[1] == 0 {
+						g.blackCastles[0] = false
+					} else if g.blackCastles[1] && startingPos[0] == 0 && startingPos[1] == 7 {
+						g.blackCastles[1] = false
+					}
+				}
+			}
 
 			//now checking if this move puts the opponent in check
 			//note we switched turns in the logic just before this loop
@@ -523,6 +644,7 @@ func (g *Game) DrawStaticPieces() {
 			opPiece.GeoM.Rotate(rotate)
 			opPiece.GeoM.Scale(1.5, 1.5) //essentially W x H = 90 x 90
 			opPiece.GeoM.Translate(tx, ty)
+			opPiece.Filter = Filter
 			g.pieceImage.DrawImage(g.pieces[i].Image(), opPiece)
 		}
 	}
@@ -536,6 +658,7 @@ func (g *Game) DrawMovingPiece() {
 			opPiece := &ebiten.DrawImageOptions{}
 			opPiece.GeoM.Scale(1.5, 1.5) //essentially W x H = 90 x 90
 			opPiece.GeoM.Translate(tx, ty)
+			opPiece.Filter = Filter
 			g.movingImage.DrawImage(g.pieces[i].Image(), opPiece)
 			break
 		}
@@ -641,19 +764,28 @@ func (g *Game) DrawUI() {
 
 	//The following offsets and modifiers help to dynamically grow the column of taken pieces and flip them
 	//as the board is flipped
-	whiteXOffset := ((float64(g.screenSize[0]) - (TileSize * 8 * g.factor)) / 2) - 60*g.factor
-	blackXOffset := ((float64(g.screenSize[0]) - (TileSize * 8 * g.factor)) / 2) + (TileSize*8+60)*g.factor
-	whiteYOffset := (float64(g.screenSize[1]) - (TileSize * 8 * g.factor)) / 2
-	blackYOffset := TileSize * 8 * g.factor
-	whiteGrowth := -16 * g.factor
-	blackGrowth := 16 * g.factor
+	boardSize := 1024 * g.factor
+	offset := 60 * g.factor
+	whiteXOffset := ((float64(g.screenSize[0]) - boardSize) / 2) - offset
+	blackXOffset := ((float64(g.screenSize[0]) - boardSize) / 2) + boardSize + offset
+	whiteYOffset := ((float64(g.screenSize[1]) - boardSize) / 2) + offset
+	blackYOffset := ((float64(g.screenSize[1]) - boardSize) / 2) + boardSize - offset
+	whiteGrowth := -24.0
+	blackGrowth := 24.0
+
+	whiteXOffset *= 1 / g.factor
+	whiteYOffset *= 1 / g.factor
+	blackXOffset *= 1 / g.factor
+	blackYOffset *= 1 / g.factor
 
 	// Rotate the board for local multiplayer (gameType 1)
 	if !g.whitesTurn && g.gameType == 1 {
+		tmpX := whiteXOffset
+		tmpY := whiteYOffset
 		whiteXOffset = blackXOffset
 		whiteYOffset = blackYOffset
-		blackXOffset = ((float64(g.screenSize[0]) - (TileSize * 8 * g.factor)) / 2) - 60*g.factor
-		blackYOffset = 28
+		blackXOffset = tmpX
+		blackYOffset = tmpY
 		whiteGrowth *= -1
 		blackGrowth *= -1
 	}
@@ -661,15 +793,15 @@ func (g *Game) DrawUI() {
 	//Draw the lists of taken piece images
 	for i, p := range whitePieces {
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Scale(0.7, 0.7)
 		op.GeoM.Translate(float64(len(whitePieces)-i)*whiteGrowth+whiteXOffset, whiteYOffset)
+		op.Filter = Filter
 		g.uiImage.DrawImage(p.Image(), op)
 	}
-
+	//
 	for i, p := range blackPieces {
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Scale(0.7, 0.7)
 		op.GeoM.Translate(float64(len(blackPieces)-i)*blackGrowth+blackXOffset, blackYOffset)
+		op.Filter = Filter
 		g.uiImage.DrawImage(p.Image(), op)
 	}
 
@@ -681,6 +813,7 @@ func (g *Game) DrawUI() {
 
 	opMenuBtn1 := &ebiten.DrawImageOptions{}
 	opMenuBtn1.GeoM.Translate(float64(g.inGameButtons[0].x), float64(g.inGameButtons[0].y))
+	opMenuBtn1.Filter = Filter
 	if g.btnHoverIndex == 1 {
 		g.uiImage.DrawImage(g.btnPrimaryHover, opMenuBtn1)
 		text.Draw(g.uiImage, g.inGameButtons[0].text, g.uiFontSmall, g.inGameButtons[0].TextX(), g.inGameButtons[0].TextY(), colornames.Gray)
@@ -691,6 +824,7 @@ func (g *Game) DrawUI() {
 
 	opMenuBtn2 := &ebiten.DrawImageOptions{}
 	opMenuBtn2.GeoM.Translate(float64(g.inGameButtons[1].x), float64(g.inGameButtons[1].y))
+	opMenuBtn2.Filter = Filter
 	if g.btnHoverIndex == 2 {
 		g.uiImage.DrawImage(g.btnInfoHover, opMenuBtn2)
 		text.Draw(g.uiImage, g.inGameButtons[1].text, g.uiFontSmall, g.inGameButtons[1].TextX(), g.inGameButtons[1].TextY(), colornames.Gray)
@@ -762,37 +896,43 @@ func (g *Game) InitPiecesAndImages() {
 	g.selectedLocation[1] = 0.0
 
 	g.pieces[0] = &Rook{Piece{0, 0, false}}
-	g.pieces[1] = &Knight{Piece{1, 0, false}}
-	g.pieces[2] = &Bishop{Piece{2, 0, false}}
-	g.pieces[3] = &Queen{Piece{3, 0, false}}
-	g.pieces[4] = &King{Piece{4, 0, false}}
-	g.pieces[5] = &Bishop{Piece{5, 0, false}}
-	g.pieces[6] = &Knight{Piece{6, 0, false}}
-	g.pieces[7] = &Rook{Piece{7, 0, false}}
-	g.pieces[8] = &Pawn{Piece{0, 1, false}}
+	g.pieces[1] = &Knight{Piece{0, 1, false}}
+	g.pieces[2] = &Bishop{Piece{0, 2, false}}
+	g.pieces[3] = &Queen{Piece{0, 3, false}}
+	g.pieces[4] = &King{Piece{0, 4, false}}
+	g.pieces[5] = &Bishop{Piece{0, 5, false}}
+	g.pieces[6] = &Knight{Piece{0, 6, false}}
+	g.pieces[7] = &Rook{Piece{0, 7, false}}
+	g.pieces[8] = &Pawn{Piece{1, 0, false}}
 	g.pieces[9] = &Pawn{Piece{1, 1, false}}
-	g.pieces[10] = &Pawn{Piece{2, 1, false}}
-	g.pieces[11] = &Pawn{Piece{3, 1, false}}
-	g.pieces[12] = &Pawn{Piece{4, 1, false}}
-	g.pieces[13] = &Pawn{Piece{5, 1, false}}
-	g.pieces[14] = &Pawn{Piece{6, 1, false}}
-	g.pieces[15] = &Pawn{Piece{7, 1, false}}
-	g.pieces[16] = &Pawn{Piece{0, 6, true}}
-	g.pieces[17] = &Pawn{Piece{1, 6, true}}
-	g.pieces[18] = &Pawn{Piece{2, 6, true}}
-	g.pieces[19] = &Pawn{Piece{3, 6, true}}
-	g.pieces[20] = &Pawn{Piece{4, 6, true}}
-	g.pieces[21] = &Pawn{Piece{5, 6, true}}
+	g.pieces[10] = &Pawn{Piece{1, 2, false}}
+	g.pieces[11] = &Pawn{Piece{1, 3, false}}
+	g.pieces[12] = &Pawn{Piece{1, 4, false}}
+	g.pieces[13] = &Pawn{Piece{1, 5, false}}
+	g.pieces[14] = &Pawn{Piece{1, 6, false}}
+	g.pieces[15] = &Pawn{Piece{1, 7, false}}
+	g.pieces[16] = &Pawn{Piece{6, 0, true}}
+	g.pieces[17] = &Pawn{Piece{6, 1, true}}
+	g.pieces[18] = &Pawn{Piece{6, 2, true}}
+	g.pieces[19] = &Pawn{Piece{6, 3, true}}
+	g.pieces[20] = &Pawn{Piece{6, 4, true}}
+	g.pieces[21] = &Pawn{Piece{6, 5, true}}
 	g.pieces[22] = &Pawn{Piece{6, 6, true}}
-	g.pieces[23] = &Pawn{Piece{7, 6, true}}
-	g.pieces[24] = &Rook{Piece{0, 7, true}}
-	g.pieces[25] = &Knight{Piece{1, 7, true}}
-	g.pieces[26] = &Bishop{Piece{2, 7, true}}
-	g.pieces[27] = &Queen{Piece{3, 7, true}}
-	g.pieces[28] = &King{Piece{4, 7, true}}
-	g.pieces[29] = &Bishop{Piece{5, 7, true}}
-	g.pieces[30] = &Knight{Piece{6, 7, true}}
+	g.pieces[23] = &Pawn{Piece{6, 7, true}}
+	g.pieces[24] = &Rook{Piece{7, 0, true}}
+	g.pieces[25] = &Knight{Piece{7, 1, true}}
+	g.pieces[26] = &Bishop{Piece{7, 2, true}}
+	g.pieces[27] = &Queen{Piece{7, 3, true}}
+	g.pieces[28] = &King{Piece{7, 4, true}}
+	g.pieces[29] = &Bishop{Piece{7, 5, true}}
+	g.pieces[30] = &Knight{Piece{7, 6, true}}
 	g.pieces[31] = &Rook{Piece{7, 7, true}}
+
+	//signifies if castle is available for either rook, both go false if king moves
+	g.whiteCastles[0] = true
+	g.whiteCastles[1] = true
+	g.blackCastles[0] = true
+	g.blackCastles[1] = true
 
 	g.checkmateNotChecked = true
 	g.gameOver = false
@@ -834,7 +974,7 @@ func (g *Game) InitGame() {
 	}
 
 	g.uiFontBig, err = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    34,
+		Size:    38,
 		DPI:     FontDPI,
 		Hinting: font.HintingVertical,
 	})
@@ -843,7 +983,7 @@ func (g *Game) InitGame() {
 	}
 
 	g.uiFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    24,
+		Size:    28,
 		DPI:     FontDPI,
 		Hinting: font.HintingVertical,
 	})
@@ -852,7 +992,7 @@ func (g *Game) InitGame() {
 	}
 
 	g.uiFontSmall, err = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    14,
+		Size:    15,
 		DPI:     FontDPI,
 		Hinting: font.HintingVertical,
 	})
@@ -888,13 +1028,13 @@ func (g *Game) InitGame() {
 	}
 
 	var localMatchBtn Button
-	localMatchBtn.fontSize = 14
+	localMatchBtn.fontSize = 15
 	localMatchBtn.text = "Local Match"
 	localMatchBtn.x = Width/2 - 90
 	localMatchBtn.y = Height/2 + 8
 
 	var versusBotBtn Button
-	versusBotBtn.fontSize = 14
+	versusBotBtn.fontSize = 15
 	versusBotBtn.text = "Versus Bot"
 	versusBotBtn.x = Width/2 - 90
 	versusBotBtn.y = Height/2 + 118
@@ -906,13 +1046,13 @@ func (g *Game) InitGame() {
 	mainMenuButton.x = 200
 	mainMenuButton.y = 370
 	mainMenuButton.text = "Main Menu"
-	mainMenuButton.fontSize = 14
+	mainMenuButton.fontSize = 15
 
 	var newGameButton Button
 	newGameButton.x = 200
 	newGameButton.y = 626
 	newGameButton.text = "New Game"
-	newGameButton.fontSize = 14
+	newGameButton.fontSize = 15
 
 	g.inGameButtons[0] = mainMenuButton
 	g.inGameButtons[1] = newGameButton
@@ -933,11 +1073,8 @@ func main() {
 	ebiten.SetWindowTitle("Chess by bojerg")
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 	ebiten.SetWindowSizeLimits(800, 450, 7680, 4320)
-	ebiten.MaximizeWindow()
-
 	game := &Game{}
 	game.InitGame()
-
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
