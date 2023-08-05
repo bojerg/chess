@@ -327,33 +327,32 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 			//A legal king move of more than one space can only be a castle move
 			moveDistance := startingPos[1] - g.pieces[g.selectedPiece].Col()
 			isCastle = moveDistance == -2 || moveDistance == 2
-			var rookLoc [2]int
 			if isCastle {
 				if moveDistance == 2 {
 					//queen side castle
 					if g.whitesTurn {
 						//rook 7,0
-						rookLoc[0] = 7
-						rookLoc[1] = 0
+						castleRookStartPos[0] = 7
+						castleRookStartPos[1] = 0
 					} else {
 						//rook 0,0
-						rookLoc[0] = 0
-						rookLoc[1] = 0
+						castleRookStartPos[0] = 0
+						castleRookStartPos[1] = 0
 					}
 				} else if moveDistance == -2 {
 					//king side castle
 					if g.whitesTurn {
 						//rook 7,7
-						rookLoc[0] = 7
-						rookLoc[1] = 7
+						castleRookStartPos[0] = 7
+						castleRookStartPos[1] = 7
 					} else {
 						//rook 0,7
-						rookLoc[0] = 0
-						rookLoc[1] = 7
+						castleRookStartPos[0] = 0
+						castleRookStartPos[1] = 7
 					}
 				}
 				for i, p := range g.pieces {
-					if p.White() == g.whitesTurn && p.Row() == rookLoc[0] && p.Col() == rookLoc[1] {
+					if p.White() == g.whitesTurn && p.Row() == castleRookStartPos[0] && p.Col() == castleRookStartPos[1] {
 						castleRookIndex = i
 						break
 					}
@@ -396,11 +395,40 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 					}
 				}
 			}
-		} else {
-			//CASTLE
-			//TODO:Making sure the king does not pass through check, and move the rook
-			//var castleRookIndex int
-			//var castleRookStartPos [2]int
+		} else { //CASTLE
+
+			//ensure king does not pass through check
+			skippedSpaceDir := -1
+			if castleRookStartPos[1] == 0 {
+				skippedSpaceDir = 1
+			}
+
+			//move king to appropriate "skipped space"
+			g.pieces[g.selectedPiece].SetCol(g.pieces[g.selectedPiece].Col() + skippedSpaceDir)
+
+			// for each piece on opposing team, does it have possible move to check this player after the move?
+			// reminder, a piece with col of -1 has been taken
+			for _, piece := range g.pieces {
+				if piece.White() != g.whitesTurn && piece.Col() != -1 {
+
+					//check possible moves for each valid piece and see if any would check the king
+					for _, move := range piece.Moves(*g) {
+						otherPiece := GetPieceOnSquare(move[0], move[1], g.pieces)
+						if otherPiece != nil && otherPiece.White() == g.whitesTurn && IsKing(otherPiece) == true {
+							legal = false
+							break
+						}
+					}
+				}
+				if !legal {
+					break
+				}
+			}
+
+			//move king back to it's ending location and move the rook appropriately
+			g.pieces[g.selectedPiece].SetCol(g.pieces[g.selectedPiece].Col() - skippedSpaceDir)
+			g.pieces[castleRookIndex].SetCol(g.pieces[g.selectedPiece].Col() + skippedSpaceDir)
+
 		}
 
 		// for each piece on opposing team, does it have possible move to check this player after the move?
@@ -424,7 +452,7 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 			}
 		}
 
-		//Here, we have finished our move evaluation. Either put it back and allow player to try to play a legal move,
+		//Here, we have finished our move evaluation. Either put it back and allow player to try another move,
 		//or let the legal move play and switch teams, etc.
 		if !legal {
 			//put the piece back
@@ -434,6 +462,11 @@ func (g *Game) MakeMoveIfLegal(row, col int) {
 			//put the captured piece back too, if it was taken
 			if capturedPiece != nil {
 				(*capturedPiece).SetCol(capturedOldCol)
+			}
+
+			if isCastle {
+				g.pieces[castleRookIndex].SetRow(castleRookStartPos[0])
+				g.pieces[castleRookIndex].SetCol(castleRookStartPos[1])
 			}
 
 		} else {
@@ -863,36 +896,36 @@ func (g *Game) InitPiecesAndImages() {
 	g.selectedLocation[1] = 0.0
 
 	g.pieces[0] = &Rook{Piece{0, 0, false}}
-	g.pieces[1] = &Knight{Piece{1, 0, false}}
-	g.pieces[2] = &Bishop{Piece{2, 0, false}}
-	g.pieces[3] = &Queen{Piece{3, 0, false}}
-	g.pieces[4] = &King{Piece{4, 0, false}}
-	g.pieces[5] = &Bishop{Piece{5, 0, false}}
-	g.pieces[6] = &Knight{Piece{6, 0, false}}
-	g.pieces[7] = &Rook{Piece{7, 0, false}}
-	g.pieces[8] = &Pawn{Piece{0, 1, false}}
+	g.pieces[1] = &Knight{Piece{0, 1, false}}
+	g.pieces[2] = &Bishop{Piece{0, 2, false}}
+	g.pieces[3] = &Queen{Piece{0, 3, false}}
+	g.pieces[4] = &King{Piece{0, 4, false}}
+	g.pieces[5] = &Bishop{Piece{0, 5, false}}
+	g.pieces[6] = &Knight{Piece{0, 6, false}}
+	g.pieces[7] = &Rook{Piece{0, 7, false}}
+	g.pieces[8] = &Pawn{Piece{1, 0, false}}
 	g.pieces[9] = &Pawn{Piece{1, 1, false}}
-	g.pieces[10] = &Pawn{Piece{2, 1, false}}
-	g.pieces[11] = &Pawn{Piece{3, 1, false}}
-	g.pieces[12] = &Pawn{Piece{4, 1, false}}
-	g.pieces[13] = &Pawn{Piece{5, 1, false}}
-	g.pieces[14] = &Pawn{Piece{6, 1, false}}
-	g.pieces[15] = &Pawn{Piece{7, 1, false}}
-	g.pieces[16] = &Pawn{Piece{0, 6, true}}
-	g.pieces[17] = &Pawn{Piece{1, 6, true}}
-	g.pieces[18] = &Pawn{Piece{2, 6, true}}
-	g.pieces[19] = &Pawn{Piece{3, 6, true}}
-	g.pieces[20] = &Pawn{Piece{4, 6, true}}
-	g.pieces[21] = &Pawn{Piece{5, 6, true}}
+	g.pieces[10] = &Pawn{Piece{1, 2, false}}
+	g.pieces[11] = &Pawn{Piece{1, 3, false}}
+	g.pieces[12] = &Pawn{Piece{1, 4, false}}
+	g.pieces[13] = &Pawn{Piece{1, 5, false}}
+	g.pieces[14] = &Pawn{Piece{1, 6, false}}
+	g.pieces[15] = &Pawn{Piece{1, 7, false}}
+	g.pieces[16] = &Pawn{Piece{6, 0, true}}
+	g.pieces[17] = &Pawn{Piece{6, 1, true}}
+	g.pieces[18] = &Pawn{Piece{6, 2, true}}
+	g.pieces[19] = &Pawn{Piece{6, 3, true}}
+	g.pieces[20] = &Pawn{Piece{6, 4, true}}
+	g.pieces[21] = &Pawn{Piece{6, 5, true}}
 	g.pieces[22] = &Pawn{Piece{6, 6, true}}
-	g.pieces[23] = &Pawn{Piece{7, 6, true}}
-	g.pieces[24] = &Rook{Piece{0, 7, true}}
-	g.pieces[25] = &Knight{Piece{1, 7, true}}
-	g.pieces[26] = &Bishop{Piece{2, 7, true}}
-	g.pieces[27] = &Queen{Piece{3, 7, true}}
-	g.pieces[28] = &King{Piece{4, 7, true}}
-	g.pieces[29] = &Bishop{Piece{5, 7, true}}
-	g.pieces[30] = &Knight{Piece{6, 7, true}}
+	g.pieces[23] = &Pawn{Piece{6, 7, true}}
+	g.pieces[24] = &Rook{Piece{7, 0, true}}
+	g.pieces[25] = &Knight{Piece{7, 1, true}}
+	g.pieces[26] = &Bishop{Piece{7, 2, true}}
+	g.pieces[27] = &Queen{Piece{7, 3, true}}
+	g.pieces[28] = &King{Piece{7, 4, true}}
+	g.pieces[29] = &Bishop{Piece{7, 5, true}}
+	g.pieces[30] = &Knight{Piece{7, 6, true}}
 	g.pieces[31] = &Rook{Piece{7, 7, true}}
 
 	//signifies if castle is available for either rook, both go false if king moves
